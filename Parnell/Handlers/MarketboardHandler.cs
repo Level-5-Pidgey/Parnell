@@ -74,13 +74,11 @@ public class MarketboardHandler : IDisposable
 
     private void MarketboardHistoryReceived(IMarketBoardHistory history)
     {
-        //TODO add item history to PriceService for this item.
-        return;
+        Parnell.PriceService.UpdateHistory(history);
     }
 
     private void MarketboardOfferingsReceived(IMarketBoardCurrentOfferings currentOfferings)
     {
-        // Add current cheapest listing to PriceService for this item.
-        return;
+        Parnell.PriceService.UpdateOfferings(currentOfferings);
     }
 }

@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Dalamud.Utility;
 using ECommons;
 using ECommons.DalamudServices;
 using ECommons.UIHelpers.AtkReaderImplementations;
 using FFXIVClientStructs.FFXIV.Client.UI;
+using FFXIVClientStructs.FFXIV.Client.UI.Misc;
 using FFXIVClientStructs.FFXIV.Component.GUI;
 using Lumina.Excel.Sheets;
 using Parnell.Helpers;
@@ -136,15 +138,19 @@ namespace Parnell.Scheduler
                 {
                     itemSearchResult->Close(true);
                 }
-
+                
                 if (GenericHelpers.TryGetAddonByName<AddonRetainerSell>("RetainerSell", out var retainerSell) && GenericHelpers.IsAddonReady(&retainerSell->AtkUnitBase))
                 {
+                    var itemName = retainerSell->ItemName->NodeText;
+                    var isHq = itemName.ToString().Contains(Lang.HqSymbol);
+                    var nameText = itemName.StringPtr.AsDalamudSeString().TextValue;
+                    var itemData = Svc.Data.GetExcelSheet<Item>().FirstOrDefault(x => x.Name == nameText);
                     var currentPrice = retainerSell->AskingPrice->Value;
-                    var newPrice = currentPrice - 1;
+                    var newPrice = Parnell.PriceService.GetAppropriatePriceForItem(itemData.RowId, isHq);
 
-                    if (currentPrice != newPrice)
+                    if (newPrice > 0 && currentPrice != newPrice)
                     {
-                        retainerSell->AskingPrice->SetValue(newPrice);
+                        retainerSell->AskingPrice->SetValue((int) newPrice);
                         ECommons.Automation.Callback.Fire(&retainerSell->AtkUnitBase, true, 0);
                     }
                     else
