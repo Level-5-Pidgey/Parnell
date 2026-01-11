@@ -1,38 +1,97 @@
-﻿using ECommons.Throttlers;
+using System.Linq;
+using ECommons;
+using ECommons.DalamudServices;
+using ECommons.Throttlers;
+using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Component.GUI;
 using Parnell.Helpers;
 
-namespace Parnell.Tickable;
-
-public unsafe class MainScheduler
+namespace Parnell.Scheduler
 {
-    public static bool Enabled { get; set; }
-
-    public static void Tick(Parnell plugin)
+    public unsafe class MainScheduler
     {
-        if (!Enabled)
-        {
-            return;
-        }
+        public static bool Enabled { get; set; }
 
-        // Check if we already have the retainer list open
-        if (AddonHelpers.TryGetAddonByName<AtkUnitBase>("RetainerList", out var addon) && addon->IsVisible)
+        public static void Tick()
         {
-            
-        }
-        // If not, check if the player is next to a retainer bell
-        else
-        {
-            if (!Utils.IsOccupied())
+            if (!Enabled)
             {
-                if (EzThrottler.Check("InteractWithBellDelay"))
-                {
-                    
-                }
+                return;
+            }
+
+            if (Parnell.TaskManager.IsBusy)
+            {
+                return;
+            }
+
+            if (GenericHelpers.TryGetAddonByName<AtkUnitBase>("RetainerList", out var addon) && addon->IsVisible)
+            {
+                ProcessRetainers();
             }
             else
             {
-                EzThrottler.Throttle("InteractWithBellDelay", 2500, true);
+                if (!Utils.IsOccupied())
+                {
+                    if (EzThrottler.Check("InteractWithBellDelay"))
+                    {
+                        InteractWithBell.Enqueue(ProcessRetainers);
+                    }
+                }
+                else
+                {
+                    EzThrottler.Throttle("InteractWithBellDelay", 2500, true);
+                }
+            }
+        }
+
+        private static void ProcessRetainers()
+        {
+            if (RetainerListHandlers.Retainers.Count <= 0)
+            {
+                var retainerManager = RetainerManager.Instance();
+                if (!retainerManager->IsReady)
+                {
+                    return;
+                }
+
+                foreach (var gameRetainer in retainerManager->Retainers)
+                {
+                    var retainer = new Retainer(gameRetainer);
+
+                    if (retainer.Name == string.Empty || retainer.MarketItemCount == 0)
+                    {
+                        continue;
+                    }
+
+                    RetainerListHandlers.Retainers.Add(new Retainer(gameRetainer));
+                }
+            }
+
+            if (RetainerListHandlers.Retainers.Any())
+            {
+                if (!EzThrottler.Throttle(nameof(RetainerListHandlers.SelectRetainer), 2000))
+                {
+                    return;
+                }
+                
+                var retainer = RetainerListHandlers.Retainers.First();
+                
+                Parnell.TaskManager.Enqueue(() => RetainerListHandlers.SelectRetainer(retainer.Name));
+                Parnell.TaskManager.EnqueueDelay(200);
+                Parnell.TaskManager.Enqueue(RetainerMarketboardHandler.EnqueueRetainerSteps);
+                Parnell.TaskManager.EnqueueDelay(200);
+                
+                RetainerListHandlers.Retainers.Remove(retainer);
+            }
+            else
+            {
+                Parnell.TaskManager.Enqueue(() =>
+                {
+                    Enabled = false;
+                    RetainerListHandlers.Retainers.Clear();
+
+                    return true;
+                });
             }
         }
     }

@@ -1,19 +1,24 @@
 ﻿using Dalamud.Configuration;
+using Dalamud.Plugin;
 using System;
 
-namespace SamplePlugin;
+namespace Parnell;
 
 [Serializable]
 public class Configuration : IPluginConfiguration
 {
     public int Version { get; set; } = 0;
 
-    public bool IsConfigWindowMovable { get; set; } = true;
-    public bool SomePropertyToBeSavedAndWithADefault { get; set; } = true;
+    [NonSerialized]
+    private IDalamudPluginInterface? pluginInterface;
 
-    // The below exists just to make saving less cumbersome
+    public void Initialize(IDalamudPluginInterface pInterface)
+    {
+        this.pluginInterface = pInterface;
+    }
+
     public void Save()
     {
-        Plugin.PluginInterface.SavePluginConfig(this);
+        this.pluginInterface!.SavePluginConfig(this);
     }
 }

@@ -5,18 +5,18 @@ using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
 using ECommons;
 using ECommons.Automation.NeoTaskManager;
+using ECommons.DalamudServices;
+using ECommons.Logging;
 using ECommons.Schedulers;
-using ECommons.UIHelpers.AddonMasterImplementations;
-using FFXIVClientStructs.FFXIV.Client.UI;
-using Parnell.Automation;
+using Parnell.Handlers;
+using Parnell.Scheduler;
 using Parnell.Services;
 using Parnell.Tickable;
 
 namespace Parnell;
 
-public sealed class Plugin : IDalamudPlugin
+public sealed class Parnell : IDalamudPlugin
 {
-    internal static Plugin Instance;
     public string Name => "Parnell";
 
     [PluginService] public static ICommandManager CommandManager { get; private set; } = null!;
@@ -29,12 +29,20 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] public static ICondition Condition { get; private set; } = null!;
     [PluginService] public static IPluginLog Log { get; private set; } = null!;
 
+    [PluginService]
+    public static IAddonLifecycle AddonLifecycle { get; private set; } = null!;
+
+    [PluginService]
+    public static IMarketBoard MarketBoard { get; private set; } = null!;
+
     private const string CommandName = "/updatelistings";
     public Configuration Configuration { get; init; }
     public static TaskManager TaskManager { get; private set; } = null!;
     public static PriceService PriceService { get; private set; } = null!;
 
-    public Plugin(IDalamudPluginInterface pi)
+    public MarketboardHandler MarketboardHandler { get; private set; } = null!;
+
+    public Parnell(IDalamudPluginInterface pi)
     {
         Configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
         Configuration.Initialize(PluginInterface);
@@ -42,14 +50,12 @@ public sealed class Plugin : IDalamudPlugin
         ECommonsMain.Init(pi, this, Module.DalamudReflector);
         
         PriceService = new PriceService();
-        var scheduler = new TickScheduler(Init);
-        
+        _ = new TickScheduler(Init);
+
         CommandManager.AddHandler(CommandName, new CommandInfo(MarketUpdateCommand)
         {
             HelpMessage = "Updates retainer listings based on DC price floors."
         });
-
-        Framework.Update += OnFrameworkUpdate;
     }
 
     private void Init()
@@ -59,12 +65,17 @@ public sealed class Plugin : IDalamudPlugin
         debug = true;
         #endif
         TaskManager = new TaskManager(new TaskManagerConfiguration(abortOnTimeout: true, showError: true, showDebug: debug));
+        MarketboardHandler = new MarketboardHandler();
         Framework.Update += Tick;
     }
 
-    private void Tick(IFramework framework)
+    private static void Tick(IFramework framework)
     {
         SkipChatter.Tick();
+        if (MainScheduler.Enabled && Svc.Objects.LocalPlayer != null)
+        {
+            MainScheduler.Tick();
+        }
     }
 
     public void Dispose()
@@ -77,6 +88,12 @@ public sealed class Plugin : IDalamudPlugin
 
     private void MarketUpdateCommand(string command, string args)
     {
-        MarketUpdateTask.Enable();
+        MainScheduler.Enabled = !MainScheduler.Enabled;
+        if (!MainScheduler.Enabled)
+        {
+            TaskManager.Abort();
+        }
+
+        Svc.Log.Info($"Toggled operations, enabled = {MainScheduler.Enabled}.");
     }
 }
