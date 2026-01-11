@@ -8,6 +8,7 @@ using ECommons.Automation.NeoTaskManager;
 using ECommons.DalamudServices;
 using ECommons.Logging;
 using ECommons.Schedulers;
+using FFXIVClientStructs.FFXIV.Client.Game;
 using Parnell.Handlers;
 using Parnell.Scheduler;
 using Parnell.Services;
@@ -86,12 +87,32 @@ public sealed class Parnell : IDalamudPlugin
         Framework.Update -= Tick;
     }
 
-    private void MarketUpdateCommand(string command, string args)
+    private unsafe void MarketUpdateCommand(string command, string args)
     {
         MainScheduler.Enabled = !MainScheduler.Enabled;
         if (!MainScheduler.Enabled)
         {
             TaskManager.Abort();
+        }
+        else
+        {
+            var retainerManager = RetainerManager.Instance();
+            if (!retainerManager->IsReady)
+            {
+                return;
+            }
+
+            foreach (var gameRetainer in retainerManager->Retainers)
+            {
+                var retainer = new Retainer(gameRetainer);
+
+                if (retainer.Name == string.Empty || retainer.MarketItemCount == 0)
+                {
+                    continue;
+                }
+
+                RetainerListHandlers.Retainers.Add(new Retainer(gameRetainer));
+            }
         }
 
         Svc.Log.Info($"Toggled operations, enabled = {MainScheduler.Enabled}.");

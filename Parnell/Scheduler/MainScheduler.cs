@@ -46,27 +46,6 @@ namespace Parnell.Scheduler
 
         private static void ProcessRetainers()
         {
-            if (RetainerListHandlers.Retainers.Count <= 0)
-            {
-                var retainerManager = RetainerManager.Instance();
-                if (!retainerManager->IsReady)
-                {
-                    return;
-                }
-
-                foreach (var gameRetainer in retainerManager->Retainers)
-                {
-                    var retainer = new Retainer(gameRetainer);
-
-                    if (retainer.Name == string.Empty || retainer.MarketItemCount == 0)
-                    {
-                        continue;
-                    }
-
-                    RetainerListHandlers.Retainers.Add(new Retainer(gameRetainer));
-                }
-            }
-
             if (RetainerListHandlers.Retainers.Any())
             {
                 if (!EzThrottler.Throttle(nameof(RetainerListHandlers.SelectRetainer), 2000))
