@@ -96,6 +96,11 @@ public sealed class Parnell : IDalamudPlugin
         }
         else
         {
+            if (RetainerListHandlers.Retainers.Count > 0)
+            {
+                return;
+            }
+
             var retainerManager = RetainerManager.Instance();
             if (!retainerManager->IsReady)
             {
