@@ -91,7 +91,7 @@ public class PriceService
         if (listings.Count > 1)
         {
             var secondCheapest = listings[1].PricePerUnit;
-            if (cheapestListing < secondCheapest / 2 && cheapestListing > npcSellPrice)
+            if (cheapestListing < secondCheapest * 0.66 && cheapestListing > npcSellPrice)
             {
                 Svc.Log.Info($"Extreme undercut detected on {itemData?.Name ?? "Unknown Item"}. Lowest price: {cheapestListing}, 2nd lowest price: {secondCheapest}. Using 2nd lowest price to determine new price.");
                 cheapestListing = secondCheapest;
