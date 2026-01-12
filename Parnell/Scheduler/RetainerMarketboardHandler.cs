@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Dalamud.Game.Text.SeStringHandling.Payloads;
 using Dalamud.Utility;
 using ECommons;
 using ECommons.DalamudServices;
@@ -54,8 +55,7 @@ namespace Parnell.Scheduler
                     var index = i;
                     Parnell.TaskManager.Insert(SetNewPrice);
                     Parnell.TaskManager.InsertDelay(200);
-                    Parnell.TaskManager.Insert(ClickComparePrice);
-                    Parnell.TaskManager.InsertDelay(5000);
+                    Parnell.TaskManager.Insert(ComparePriceIfNeeded);
                     Parnell.TaskManager.Insert(ClickAdjustPrice);
                     Parnell.TaskManager.InsertDelay(200);
                     Parnell.TaskManager.Insert(() => OpenItemContextMenu(index));
@@ -67,25 +67,26 @@ namespace Parnell.Scheduler
             return false;
         }
 
-        private static bool? ClickComparePrice()
+        private static bool? ComparePriceIfNeeded()
         {
             if (SkipCurrentItem)
                 return true;
 
             if (GenericHelpers.TryGetAddonByName<AddonRetainerSell>("RetainerSell", out var addon) && GenericHelpers.IsAddonReady(&addon->AtkUnitBase))
             {
-                // if we have a cached price, dont click compare
                 var itemName = addon->ItemName->NodeText;
-                var nameText = itemName.StringPtr.AsDalamudSeString().TextValue;
-                var itemData = Svc.Data.GetExcelSheet<Item>().FirstOrDefault(x => x.Name == nameText);
+                var nameText = itemName.StringPtr.AsDalamudSeString();
+                var cleanedName = new string(nameText.TextValue.Where(x => x != Lang.HqSymbol).ToArray());
+                var itemData = Svc.Data.GetExcelSheet<Item>().FirstOrDefault(x => x.Name == cleanedName);
                 if (Parnell.PriceService.HasDataOnItem(itemData.RowId))
                 {
-                    Svc.Log.Debug($"{nameText}: using cached price");
+                    Svc.Log.Debug($"{cleanedName}: using cached price. Skipping price comparison.");
                 }
                 else
                 {
-                    Svc.Log.Debug($"Clicking compare prices");
+                    Svc.Log.Debug($"No cached price for {cleanedName}. Clicking compare prices.");
                     ECommons.Automation.Callback.Fire(&addon->AtkUnitBase, true, 4);
+                    Parnell.TaskManager.InsertDelay(5000);
                 }
 
                 return true;
@@ -146,11 +147,13 @@ namespace Parnell.Scheduler
                 {
                     var itemName = retainerSell->ItemName->NodeText;
                     var isHq = itemName.ToString().Contains(Lang.HqSymbol);
-                    var nameText = itemName.StringPtr.AsDalamudSeString().TextValue;
-                    var itemData = Svc.Data.GetExcelSheet<Item>().FirstOrDefault(x => x.Name == nameText);
+
+                    var nameText = itemName.StringPtr.AsDalamudSeString();
+                    var sanitised = new string(nameText.TextValue.Where(x => x != Lang.HqSymbol).ToArray());
+                    var itemData = Svc.Data.GetExcelSheet<Item>().FirstOrDefault(x => x.Name == sanitised);
+
                     var currentPrice = retainerSell->AskingPrice->Value;
                     var newPrice = Parnell.PriceService.GetAppropriatePriceForItem(itemData.RowId, isHq);
-
                     if (newPrice > 0 && currentPrice != newPrice)
                     {
                         retainerSell->AskingPrice->SetValue((int) newPrice);

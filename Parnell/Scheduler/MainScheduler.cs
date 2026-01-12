@@ -64,8 +64,9 @@ public unsafe class MainScheduler
     
     private static void ProcessSingleRetainer(string name)
     {
-        Parnell.TaskManager.Enqueue(RetainerMarketboardHandler.EnqueueRetainerSteps);
+        Parnell.TaskManager.Enqueue(() => RetainerListHandlers.SelectRetainer(name));
         Parnell.TaskManager.EnqueueDelay(200);
+        Parnell.TaskManager.Enqueue(RetainerMarketboardHandler.EnqueueRetainerSteps);
     }
 
     private static void ProcessRetainers()

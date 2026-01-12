@@ -94,9 +94,9 @@ public class PriceService
             var history = data.History.Where(h => h.IsHq == isHq).ToList();
             if (history.Count != 0)
             {
-                averageHistoryPrice = (uint)history
-                                            .Take(5)
-                                            .Average(h => h.SalePrice);
+                averageHistoryPrice = (uint) Math.Round(history
+                                                        .Take(5)
+                                                        .Average(h => h.SalePrice), MidpointRounding.AwayFromZero);
             }
         }
 
@@ -111,6 +111,12 @@ public class PriceService
             potentialPrices.Add(averageHistoryPrice);
         }
 
-        return potentialPrices.Max();
+        var potentialMax = potentialPrices.Max();
+        if (potentialMax <= 1)
+        {
+            return 0;
+        }
+        
+        return potentialMax-1;
     }
 }
