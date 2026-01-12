@@ -70,6 +70,7 @@ public class PriceService
     }
 
     public bool HasDataOnItem(uint itemId) => marketData.ContainsKey(itemId);
+
     public uint GetAppropriatePriceForItem(uint itemId, bool isHq)
     {
         if (!marketData.TryGetValue(itemId, out var data))
@@ -81,10 +82,20 @@ public class PriceService
         var npcSellPrice = itemData?.PriceLow ?? 0;
 
         uint cheapestListing = 0;
-        var listings = data.Listings.Where(l => l.IsHq == isHq).ToList();
-        if (listings.Count != 0)
+        var listings = data.Listings.Where(l => l.IsHq == isHq).OrderBy(l => l.PricePerUnit).ToList();
+        if (listings.Count > 0)
         {
-            cheapestListing = listings.Min(x => x.PricePerUnit);
+            cheapestListing = listings[0].PricePerUnit;
+        }
+
+        if (listings.Count > 1)
+        {
+            var secondCheapest = listings[1].PricePerUnit;
+            if (cheapestListing < secondCheapest / 2 && cheapestListing > npcSellPrice)
+            {
+                Svc.Log.Info($"Extreme undercut detected on {itemData?.Name ?? "Unknown Item"}. Lowest price: {cheapestListing}, 2nd lowest price: {secondCheapest}. Using 2nd lowest price to determine new price.");
+                cheapestListing = secondCheapest;
+            }
         }
 
         uint averageHistoryPrice = 0;
