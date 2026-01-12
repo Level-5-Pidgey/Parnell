@@ -81,12 +81,13 @@ namespace Parnell.Scheduler
                 if (Parnell.PriceService.HasDataOnItem(itemData.RowId))
                 {
                     Svc.Log.Debug($"{cleanedName}: using cached price. Skipping price comparison.");
+                    Parnell.TaskManager.InsertDelay(500);
                 }
                 else
                 {
                     Svc.Log.Debug($"No cached price for {cleanedName}. Clicking compare prices.");
                     ECommons.Automation.Callback.Fire(&addon->AtkUnitBase, true, 4);
-                    Parnell.TaskManager.InsertDelay(5000);
+                    Parnell.TaskManager.InsertDelay(3000);
                 }
 
                 return true;
