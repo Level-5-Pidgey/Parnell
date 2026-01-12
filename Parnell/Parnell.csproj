@@ -17,6 +17,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\AutoRetainerAPI\AutoRetainerAPI\AutoRetainerAPI.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="ECommons" Version="3.1.0.13" />
   </ItemGroup>
 

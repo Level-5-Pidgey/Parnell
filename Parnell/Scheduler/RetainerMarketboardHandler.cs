@@ -10,12 +10,13 @@ using FFXIVClientStructs.FFXIV.Client.UI.Misc;
 using FFXIVClientStructs.FFXIV.Component.GUI;
 using Lumina.Excel.Sheets;
 using Parnell.Helpers;
+using Parnell.Services;
 
 namespace Parnell.Scheduler
 {
     public unsafe class RetainerMarketboardHandler
     {
-        private static bool _skipCurrentItem;
+        private static bool SkipCurrentItem;
 
         public static void EnqueueRetainerSteps()
         {
@@ -29,7 +30,7 @@ namespace Parnell.Scheduler
 
         private static void ClearState()
         {
-            _skipCurrentItem = false;
+            SkipCurrentItem = false;
         }
 
         private static unsafe bool? ProcessAllRetainerItems()
@@ -68,16 +69,18 @@ namespace Parnell.Scheduler
 
         private static bool? ClickComparePrice()
         {
-            if (_skipCurrentItem)
+            if (SkipCurrentItem)
                 return true;
 
             if (GenericHelpers.TryGetAddonByName<AddonRetainerSell>("RetainerSell", out var addon) && GenericHelpers.IsAddonReady(&addon->AtkUnitBase))
             {
                 // if we have a cached price, dont click compare
-                var itemName = addon->ItemName->NodeText.ToString();
-                if (false)
+                var itemName = addon->ItemName->NodeText;
+                var nameText = itemName.StringPtr.AsDalamudSeString().TextValue;
+                var itemData = Svc.Data.GetExcelSheet<Item>().FirstOrDefault(x => x.Name == nameText);
+                if (Parnell.PriceService.HasDataOnItem(itemData.RowId))
                 {
-                    Svc.Log.Debug($"{itemName}: using cached price");
+                    Svc.Log.Debug($"{nameText}: using cached price");
                 }
                 else
                 {
@@ -108,7 +111,7 @@ namespace Parnell.Scheduler
                 var reader = new ReaderContextMenu(addon);
                 if (IsItemMannequin(reader.Entries))
                 {
-                    _skipCurrentItem = true;
+                    SkipCurrentItem = true;
                     addon->Close(true);
                 }
                 else
@@ -132,7 +135,7 @@ namespace Parnell.Scheduler
         {
             try
             {
-                if (_skipCurrentItem) return true;
+                if (SkipCurrentItem) return true;
 
                 if (GenericHelpers.TryGetAddonByName<AtkUnitBase>("ItemSearchResult", out var itemSearchResult))
                 {
@@ -164,7 +167,7 @@ namespace Parnell.Scheduler
             }
             finally
             {
-                _skipCurrentItem = false;
+                SkipCurrentItem = false;
             }
         }
 

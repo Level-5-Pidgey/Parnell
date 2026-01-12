@@ -43,6 +43,8 @@ public sealed class Parnell : IDalamudPlugin
 
     public MarketboardHandler MarketboardHandler { get; private set; } = null!;
 
+    public AutoRetainerHandler AutoRetainerHandler { get; private set; } = null!;
+
     public Parnell(IDalamudPluginInterface pi)
     {
         Configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
@@ -67,6 +69,7 @@ public sealed class Parnell : IDalamudPlugin
         #endif
         TaskManager = new TaskManager(new TaskManagerConfiguration(abortOnTimeout: true, showError: true, showDebug: debug));
         MarketboardHandler = new MarketboardHandler();
+        AutoRetainerHandler = new AutoRetainerHandler();
         Framework.Update += Tick;
     }
 

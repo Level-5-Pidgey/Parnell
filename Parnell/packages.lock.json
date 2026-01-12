@@ -19,6 +19,12 @@
         "requested": "[3.1.0.13, )",
         "resolved": "3.1.0.13",
         "contentHash": "h7IvgmSOniX1hXorHogX43hDg7aoneyzWKrPEY9qbN3/By4oc1Z5MgQCeoSp1vloSbbf1MQg1h+/DyNtlpYv2A=="
+      },
+      "autoretainerapi": {
+        "type": "Project",
+        "dependencies": {
+          "ECommons": "[3.1.0.1, )"
+        }
       }
     }
   }

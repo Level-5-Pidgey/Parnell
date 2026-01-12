@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Dalamud.Game.Network.Structures;
@@ -8,41 +9,70 @@ namespace Parnell.Services;
 
 public class PriceService
 {
-    private readonly Dictionary<uint, MarketData> _marketData = new();
+    private readonly Dictionary<uint, MarketData> marketData = new();
 
     public PriceService()
     {
     }
 
-    public void UpdateOfferings(IMarketBoardCurrentOfferings offerings)
+    public void UpdateOfferings(uint itemId, IReadOnlyCollection<IMarketBoardItemListing> listings)
     {
-        if (offerings.ItemListings.Count == 0) return;
+        if (listings.Count == 0) return;
 
-        var itemId = offerings.ItemListings[0].ItemId;
-        if (!_marketData.TryGetValue(itemId, out var value))
+        if (!marketData.TryGetValue(itemId, out var value))
         {
             value = new MarketData();
-            _marketData[itemId] = value;
+            marketData[itemId] = value;
         }
 
-        value.Offerings = offerings;
-    }
-
-    public void UpdateHistory(IMarketBoardHistory history)
-    {
-        if (history.HistoryListings.Count == 0) return;
-
-        var itemId = history.ItemId;
-        if (!_marketData.ContainsKey(itemId))
+        var existingListings = value.Listings.ToDictionary(l => l.ListingId);
+        foreach (var newListing in listings)
         {
-            _marketData[itemId] = new MarketData();
+            existingListings[newListing.ListingId] = newListing;
         }
-        _marketData[itemId].History = history;
+        value.Listings = existingListings.Values.ToList();
     }
 
+    public void UpdateHistory(uint itemId, IReadOnlyCollection<IMarketBoardHistoryListing> history)
+    {
+        if (history.Count == 0) return;
+
+        if (!marketData.TryGetValue(itemId, out var value))
+        {
+            value = new MarketData();
+            marketData[itemId] = value;
+        }
+
+        var existingHistory = new HashSet<IMarketBoardHistoryListing>(value.History, new MarketBoardHistoryListingComparer());
+        foreach(var newEntry in history)
+        {
+            existingHistory.Add(newEntry);
+        }
+        value.History = existingHistory.ToList();
+    }
+
+    private class MarketBoardHistoryListingComparer : IEqualityComparer<IMarketBoardHistoryListing>
+    {
+        public bool Equals(IMarketBoardHistoryListing? x, IMarketBoardHistoryListing? y)
+        {
+            if (ReferenceEquals(x, y)) return true;
+            if (x is null || y is null) return false;
+            return x.PurchaseTime == y.PurchaseTime &&
+                   x.Quantity == y.Quantity &&
+                   x.SalePrice == y.SalePrice &&
+                   x.IsHq == y.IsHq;
+        }
+
+        public int GetHashCode(IMarketBoardHistoryListing obj)
+        {
+            return HashCode.Combine(obj.PurchaseTime, obj.Quantity, obj.SalePrice, obj.IsHq);
+        }
+    }
+
+    public bool HasDataOnItem(uint itemId) => marketData.ContainsKey(itemId);
     public uint GetAppropriatePriceForItem(uint itemId, bool isHq)
     {
-        if (!_marketData.TryGetValue(itemId, out var marketData))
+        if (!marketData.TryGetValue(itemId, out var data))
         {
             return 0;
         }
@@ -51,9 +81,9 @@ public class PriceService
         var npcSellPrice = itemData?.PriceLow ?? 0;
 
         uint cheapestListing = 0;
-        if (marketData.Offerings != null)
+        var listings = data.Listings.Where(l => l.IsHq == isHq).ToList();
+        if (listings.Count != 0)
         {
-            var listings = marketData.Offerings.ItemListings.Where(l => l.IsHq == isHq).ToList();
             cheapestListing = listings.Min(x => x.PricePerUnit);
         }
 
@@ -61,16 +91,12 @@ public class PriceService
         // Only go off of history if there's no listings for this item.
         if (cheapestListing == 0)
         {
-            
-            if (marketData.History != null)
+            var history = data.History.Where(h => h.IsHq == isHq).ToList();
+            if (history.Count != 0)
             {
-                var history = marketData.History.HistoryListings.Where(h => h.IsHq == isHq).ToList();
-                if (history.Any())
-                {
-                    averageHistoryPrice = (uint)history
-                                                .GetRange(0, 5)
-                                                .Average(h => h.SalePrice);
-                }
+                averageHistoryPrice = (uint)history
+                                            .Take(5)
+                                            .Average(h => h.SalePrice);
             }
         }
 
@@ -79,6 +105,7 @@ public class PriceService
         {
             potentialPrices.Add(cheapestListing);
         }
+
         if (averageHistoryPrice > 0)
         {
             potentialPrices.Add(averageHistoryPrice);

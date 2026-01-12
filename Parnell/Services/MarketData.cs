@@ -5,6 +5,6 @@ namespace Parnell.Services;
 
 public class MarketData
 {
-    public IMarketBoardCurrentOfferings? Offerings { get; set; }
-    public IMarketBoardHistory? History { get; set; }
+    public List<IMarketBoardItemListing> Listings { get; set; } = new();
+    public List<IMarketBoardHistoryListing> History { get; set; } = new();
 }
