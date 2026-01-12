@@ -76,7 +76,7 @@ namespace Parnell.Scheduler
             {
                 var itemName = addon->ItemName->NodeText;
                 var nameText = itemName.StringPtr.AsDalamudSeString();
-                var cleanedName = new string(nameText.TextValue.Where(x => x != Lang.HqSymbol).ToArray());
+                var cleanedName = Utils.SanitiseDalamudString(nameText);
                 var itemData = Svc.Data.GetExcelSheet<Item>().FirstOrDefault(x => x.Name == cleanedName);
                 if (Parnell.PriceService.HasDataOnItem(itemData.RowId))
                 {
@@ -150,11 +150,11 @@ namespace Parnell.Scheduler
                     var isHq = itemName.ToString().Contains(Lang.HqSymbol);
 
                     var nameText = itemName.StringPtr.AsDalamudSeString();
-                    var sanitised = new string(nameText.TextValue.Where(x => x != Lang.HqSymbol).ToArray());
+                    var sanitised = Utils.SanitiseDalamudString(nameText);
                     var itemData = Svc.Data.GetExcelSheet<Item>().FirstOrDefault(x => x.Name == sanitised);
 
-                    var currentPrice = retainerSell->AskingPrice->Value;
                     var newPrice = Parnell.PriceService.GetAppropriatePriceForItem(itemData.RowId, isHq);
+                    var currentPrice = retainerSell->AskingPrice->Value;
                     if (newPrice > 0 && currentPrice != newPrice)
                     {
                         retainerSell->AskingPrice->SetValue((int) newPrice);
@@ -165,6 +165,8 @@ namespace Parnell.Scheduler
                         ECommons.Automation.Callback.Fire(&retainerSell->AtkUnitBase, true, 1);
                     }
                     retainerSell->AtkUnitBase.Close(true);
+                    Parnell.TaskManager.InsertDelay(500);
+
                     return true;
                 }
                 return false;

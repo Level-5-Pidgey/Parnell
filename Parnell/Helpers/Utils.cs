@@ -1,8 +1,10 @@
 using System;
+using System.Linq;
 using System.Numerics;
 using System.Runtime.InteropServices;
 using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Game.ClientState.Objects.Types;
+using Dalamud.Game.Text.SeStringHandling;
 using Dalamud.Plugin.Services;
 using ECommons.Automation.UIInput;
 using ECommons.GameHelpers;
@@ -57,6 +59,8 @@ public static class Utils
         return closest;
     }
     
+    public static string SanitiseDalamudString(SeString dalamudString) => new string(dalamudString.TextValue.Where(x => x != Lang.HqSymbol).ToArray()).Trim();
+
     public static unsafe void SendClick(IntPtr arg1, EventType arg2, uint arg3, void* target, IntPtr arg5)
     {
         var listener = (AtkEventListener*)arg1;
