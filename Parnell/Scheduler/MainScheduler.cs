@@ -80,6 +80,7 @@ public unsafe class MainScheduler
                 singleRetainerCallback?.Invoke();
                 singleRetainerCallback = null;
                 Enabled = false;
+                Parnell.PriceService.Clear();
                 return true;
             });
         }
@@ -113,6 +114,7 @@ public unsafe class MainScheduler
             {
                 Enabled = false;
                 RetainerListHandlers.Retainers.Clear();
+                Parnell.PriceService.Clear();
 
                 return true;
             });

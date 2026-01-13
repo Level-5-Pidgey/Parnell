@@ -71,6 +71,8 @@ public class PriceService
 
     public bool HasDataOnItem(uint itemId) => marketData.ContainsKey(itemId);
 
+    public void Clear() => marketData.Clear();
+
     public uint GetAppropriatePriceForItem(uint itemId, bool isHq)
     {
         if (!marketData.TryGetValue(itemId, out var data))
