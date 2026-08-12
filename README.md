@@ -13,6 +13,7 @@ Retainer Repricer handles the tedious work of repricing your retainer sales at t
 ## Key Features
 
 - Automatically visits every enabled retainer and handles repricing or listing new items.
+- Optionally runs for the retainer AutoRetainer has just processed, then returns control to AutoRetainer.
 - Pulls live market data from Universalis to set competitive prices, with a configurable undercut amount.
 - Smart Sort keeps your Sell List organized by prioritizing items that sell fast and for good prices—you can trigger it manually or let it run on a schedule.
 - Settings apply instantly—no need to reload or restart anything.
@@ -59,6 +60,7 @@ The items you want the plugin to list or reprice live here.
 ## Settings
 
 - **Plugin enabled** – Master toggle to enable or disable all automation, overlay, and context menu features.
+- **Run after AutoRetainer processes a retainer** – Opts into single-retainer repricing and selling during AutoRetainer's post-processing step.
 - **Show tooltips** – Turns on helpful tooltips when hovering over settings controls.
 - **Close RetainerList on finish** – Automatically closes the Retainer List when a run completes.
 - **Overlay** – Toggle the overlay that appears near bell menus (Start, Stop, Config buttons).

@@ -906,6 +906,26 @@ public sealed class ConfigWindow : Window, IDisposable
 
         ImGui.Spacing();
 
+        var autoRetainerEnabled = _config.EnableAutoRetainerIntegration;
+        if (ImGui.Checkbox("Run after AutoRetainer processes a retainer", ref autoRetainerEnabled))
+        {
+            _config.EnableAutoRetainerIntegration = autoRetainerEnabled;
+            Plugin.Log.Information("[RR][Config] AutoRetainer integration enabled={Enabled}", autoRetainerEnabled);
+            SaveConfig();
+        }
+
+        if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
+        {
+            TooltipHelper.Show(_config,
+                "When AutoRetainer finishes a retainer, process that retainer's existing listings and eligible Sell List inventory before AutoRetainer continues."
+            );
+        }
+
+        ImGui.SameLine();
+        ImGui.TextDisabled(_plugin.IsAutoRetainerAvailable ? "(AutoRetainer available)" : "(AutoRetainer not detected)");
+
+        ImGui.Spacing();
+
         // Overlay toggle is separate from PluginEnabled, but PluginEnabled still gates display.
         var overlayEnabled = _config.OverlayEnabled;
         if (ImGui.Checkbox("Enable overlay window", ref overlayEnabled))

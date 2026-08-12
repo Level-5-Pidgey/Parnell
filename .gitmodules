@@ -1,3 +1,6 @@
 [submodule "external/ECommons"]
 	path = external/ECommons
 	url = https://github.com/NightmareXIV/ECommons.git
+[submodule "external/AutoRetainerAPI"]
+	path = external/AutoRetainerAPI
+	url = https://github.com/PunishXIV/AutoRetainerAPI.git

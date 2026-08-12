@@ -1,9 +1,14 @@
 using System;
+using System.Linq;
 
 using Dalamud.Plugin.Services;
+using Dalamud.Utility;
+using ECommons;
 using ECommons.Automation;
+using ECommons.DalamudServices;
 using ECommons.UIHelpers.AddonMasterImplementations;
 using FFXIVClientStructs.FFXIV.Component.GUI;
+using Lumina.Excel.Sheets;
 
 namespace RetainerRepricer;
 
@@ -87,15 +92,35 @@ public unsafe sealed partial class Plugin
         var addon = GameGui.GetAddonByName("SelectString", 1);
         if (addon.IsNull) return false;
 
-        const int sellItemsIndex = 2;
+        // Addon row 2380 is "Sell items in your inventory on the market.".
+        // Resolve it through game data so the text matches the current client language.
+        const uint sellItemsAddonRowId = 2380;
 
         try
         {
             var ss = new AddonMaster.SelectString(addon.Address);
-            if (sellItemsIndex < 0 || sellItemsIndex >= ss.EntryCount) return false;
+            var row = Svc.Data.GetExcelSheet<Addon>().GetRowOrDefault(sellItemsAddonRowId);
+            if (row is null)
+            {
+                Log.Warning($"[SS] Addon row {sellItemsAddonRowId} is unavailable; cannot select Sell items.");
+                return false;
+            }
 
-            ss.Entries[sellItemsIndex].Select();
-            Log.Debug($"[SS] Select Sell items index={sellItemsIndex}");
+            var localizedText = row.Value.Text.ToDalamudString().GetText();
+            var matches = ss.Entries
+                .Where(entry => string.Equals(entry.Text, localizedText, StringComparison.Ordinal))
+                .ToArray();
+
+            if (matches.Length != 1)
+            {
+                var entries = string.Join(", ", ss.Entries.Select(entry => $"{entry.Index}='{entry.Text}'"));
+                Log.Warning($"[SS] Expected one Sell items entry but found {matches.Length}; entries: {entries}");
+                return false;
+            }
+
+            var match = matches[0];
+            match.Select();
+            Log.Debug($"[SS] Select Sell items index={match.Index}");
             return true;
         }
         catch (Exception ex)

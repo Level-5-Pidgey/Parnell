@@ -26,7 +26,7 @@ public sealed class Configuration : IPluginConfiguration
     #region Dalamud config versioning
 
     // Dalamud serialization schema version; bump when config layout changes.
-    public int Version { get; set; } = 1;
+    public int Version { get; set; } = 2;
 
     [NonSerialized]
     private IDalamudPluginInterface? _pluginInterface;
@@ -46,6 +46,9 @@ public sealed class Configuration : IPluginConfiguration
     // Master enable switch. When off: no runs, no context menu injection, no overlays.
     // Config UI stays usable so it’s easy to turn back on.
     public bool PluginEnabled { get; set; } = true;
+
+    // Allows AutoRetainer to hand the currently selected retainer to this plugin after venture processing.
+    public bool EnableAutoRetainerIntegration { get; set; } = false;
 
     // Optional: when enabled, per-retainer sell caps become available in the Sell List.
     public bool EnablePerRetainerCaps { get; set; } = false;

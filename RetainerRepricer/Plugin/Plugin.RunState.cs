@@ -73,6 +73,16 @@ public unsafe sealed partial class Plugin
 
     private RunPhase _runPhase = RunPhase.Idle;
 
+    private enum RunOrigin
+    {
+        RetainerList,
+        AutoRetainerMenu,
+    }
+
+    private RunOrigin _runOrigin = RunOrigin.RetainerList;
+    private DateTime _autoRetainerRunStartedUtc = DateTime.MinValue;
+    private DateTime _autoRetainerCleanupStartedUtc = DateTime.MinValue;
+
     internal enum RunMode
     {
         PriceAndSell,

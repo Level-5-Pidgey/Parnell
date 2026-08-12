@@ -17,7 +17,18 @@ public unsafe sealed partial class Plugin
         if ((now - _lastFrameworkTickUtc).TotalSeconds < FrameworkTickIntervalSeconds)
             return;
 
-        TickRun();
+        try
+        {
+            TickRun();
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "[RR] Unhandled automation error.");
+            if (_runOrigin == RunOrigin.AutoRetainerMenu)
+                RequestAutoRetainerCleanup("unhandled automation error");
+            else
+                StopRun();
+        }
         _lastFrameworkTickUtc = now;
     }
 }

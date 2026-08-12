@@ -21,6 +21,24 @@ public unsafe sealed partial class Plugin
         if (!IsRunning) return;
 
         var now = DateTime.UtcNow;
+
+        if (_runOrigin == RunOrigin.AutoRetainerMenu)
+        {
+            if (_autoRetainerCleanupStartedUtc == DateTime.MinValue &&
+                _autoRetainerRunStartedUtc != DateTime.MinValue &&
+                now - _autoRetainerRunStartedUtc >= AutoRetainerRunTimeout)
+            {
+                RequestAutoRetainerCleanup("run timed out");
+            }
+
+            if (_autoRetainerCleanupStartedUtc != DateTime.MinValue &&
+                now - _autoRetainerCleanupStartedUtc >= AutoRetainerCleanupTimeout)
+            {
+                CompleteAutoRetainerRun(originRestored: false);
+                return;
+            }
+        }
+
         if ((now - _lastActionUtc).TotalSeconds < ActionIntervalSeconds)
             return;
 
@@ -40,9 +58,13 @@ public unsafe sealed partial class Plugin
 
             case RunPhase.NeedOpen:
                 {
-                    if (!retainerListVisible) return;
+                    if (_runOrigin == RunOrigin.RetainerList && !retainerListVisible)
+                        return;
 
-                    if (!IsRetainerListReady())
+                    if (_runOrigin == RunOrigin.AutoRetainerMenu && !selectStringVisible)
+                        return;
+
+                    if (_runOrigin == RunOrigin.RetainerList && !IsRetainerListReady())
                     {
                         Log.Verbose("[RR] RetainerList visible but names not populated yet.");
                         _lastActionUtc = now;
@@ -85,6 +107,12 @@ public unsafe sealed partial class Plugin
                     _retainerRowPos++;
                     if (_retainerRowPos >= _retainerRowOrder.Count)
                     {
+                        if (_runOrigin == RunOrigin.AutoRetainerMenu)
+                        {
+                            CompleteAutoRetainerRun(originRestored: selectStringVisible);
+                            return;
+                        }
+
                         Log.Information("[RR] Finished: processed all enabled retainers.");
 
                         if (Configuration.CloseRetainerListAddon)
@@ -98,56 +126,16 @@ public unsafe sealed partial class Plugin
                         return;
                     }
 
-                    // Reset per-retainer counters.
-                    _sellListCountCaptured = false;
-                    _listedCountThisRetainer = 0;
-                    _slotIndexToOpen = 0;
-
-                    // Build per-retainer sell queue (runs after repricing).
-                    _sellQueue.Clear();
-                    if (Configuration.EnablePerRetainerCaps)
-                        _retainerSellCounts.Clear();
-                    _retainerExistingSellCounts.Clear();
-                    _needsExistingListingScan = Configuration.EnablePerRetainerCaps;
-                    foreach (var e in Configuration.GetSellListOrdered())
-                    {
-                        if (e.ItemId == 0) continue;
-
-                        e.EnsureRetainerCaps();
-                        e.EnsureRetainerStackSizes();
-                        var stackCap = GetStackSizeCap(e.ItemId);
-
-                        _sellQueue.Add(new SellCandidate
-                        {
-                            ItemId = e.ItemId,
-                            IsHq = e.IsHq,
-                            MinCountToSell = Math.Max(1, e.MinCountToSell),
-                            Name = e.Name ?? string.Empty,
-                            RetainerCaps = e.RetainerCaps,
-                            RetainerStackSizes = e.RetainerStackSizes,
-                            StackSizeMax = stackCap,
-                        });
-                    }
-                    _sellCapacityThisRetainer = 0;
-                    _soldThisRetainer = 0;
-
-                    _processingListedItem = true;
-                    _currentSellItemId = 0;
-                    _currentSellItemIsHq = false;
-                    _currentSellStackSize = 0;
-                    _hasPendingSellSlot = false;
-                    ResetNewListingAttempt();
-                    _failedSellSlotKeys.Clear();
-
-                    // Reset pacing per retainer so a throttle hit doesn't poison the next retainer.
-                    _mbIntervalSec = MbBaseIntervalSeconds;
-                    _lastMbQueryUtc = DateTime.MinValue;
-
                     var entry = _retainerRowOrder[_retainerRowPos];
-                    _currentRetainerAllowsReprice = entry.AllowReprice;
-                    _currentRetainerAllowsSell = entry.AllowSell;
-                    _currentRetainerRowIndex = entry.RowIndex;
-                    _currentRetainerName = entry.Name ?? string.Empty;
+                    PrepareRetainerForProcessing(entry);
+
+                    if (_runOrigin == RunOrigin.AutoRetainerMenu)
+                    {
+                        Log.Information("[RR][AutoRetainer] Opening Sell items for the assigned retainer.");
+                        _runPhase = RunPhase.WaitingSelectString;
+                        _lastActionUtc = DateTime.MinValue;
+                        return;
+                    }
 
                     Log.Information($"[RR] Opening retainer {_retainerRowPos + 1}/{_retainerRowOrder.Count}");
 
@@ -171,7 +159,11 @@ public unsafe sealed partial class Plugin
                         }
 
                         Log.Debug($"[RR] SelectString opened for {DescribeCurrentRetainerForLog()}; selecting Sell items.");
-                        TrySelectSellItems();
+                        if (!TrySelectSellItems())
+                        {
+                            _lastActionUtc = now;
+                            return;
+                        }
 
                         _runPhase = RunPhase.WaitingRetainerSellList;
                         _lastActionUtc = now;
@@ -205,7 +197,11 @@ public unsafe sealed partial class Plugin
                         }
 
                         Log.Debug($"[RR] SelectString opened for {DescribeCurrentRetainerForLog()}; selecting Sell items.");
-                        TrySelectSellItems();
+                        if (!TrySelectSellItems())
+                        {
+                            _lastActionUtc = now;
+                            return;
+                        }
 
                         _runPhase = RunPhase.WaitingRetainerSellList;
                         _lastActionUtc = now;
@@ -1529,6 +1525,19 @@ public unsafe sealed partial class Plugin
                         Log.Debug("[RR] Exit: closing RetainerSellList.");
                         CloseAddonIfOpen("RetainerSellList");
                         _lastActionUtc = now;
+                        return;
+                    }
+
+                    if (_runOrigin == RunOrigin.AutoRetainerMenu && selectStringVisible)
+                    {
+                        if (!IsSelectStringReady())
+                        {
+                            _lastActionUtc = now;
+                            return;
+                        }
+
+                        RunPendingSellPrune();
+                        CompleteAutoRetainerRun(originRestored: true);
                         return;
                     }
 

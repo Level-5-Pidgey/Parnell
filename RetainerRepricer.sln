@@ -10,6 +10,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RetainerRepricer", "Retaine
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ECommons", "external\ECommons\ECommons\ECommons.csproj", "{C8F889B2-86E8-4BCA-8370-A006A0E8F629}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AutoRetainerAPI", "external\AutoRetainerAPI\AutoRetainerAPI\AutoRetainerAPI.csproj", "{0D34798E-BD80-45FC-82A5-C62FE1E0AD63}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -22,6 +24,9 @@ Global
 		{C8F889B2-86E8-4BCA-8370-A006A0E8F629}.Debug|x64.ActiveCfg = Debug|x64
 		{C8F889B2-86E8-4BCA-8370-A006A0E8F629}.Debug|x64.Build.0 = Debug|x64
 		{C8F889B2-86E8-4BCA-8370-A006A0E8F629}.Release|x64.ActiveCfg = Release|x64
+		{0D34798E-BD80-45FC-82A5-C62FE1E0AD63}.Debug|x64.ActiveCfg = Debug|x64
+		{0D34798E-BD80-45FC-82A5-C62FE1E0AD63}.Debug|x64.Build.0 = Debug|x64
+		{0D34798E-BD80-45FC-82A5-C62FE1E0AD63}.Release|x64.ActiveCfg = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

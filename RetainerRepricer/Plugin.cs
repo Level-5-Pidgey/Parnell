@@ -76,6 +76,7 @@ public unsafe sealed partial class Plugin : IDalamudPlugin
     private readonly SellListSmartSorter _smartSorter;
     private readonly SellListInventoryPruner _sellListPruner;
     private readonly PluginLogBuffer _pluginLogBuffer;
+    private readonly AutoRetainerIntegration _autoRetainerIntegration;
     private Task<bool>? _pendingSmartSortTask;
     private bool _smartSortKickoffDone;
     private SellListInventoryPruner.SellListInventoryPruneResult? _lastPruneResult;
@@ -134,6 +135,7 @@ public unsafe sealed partial class Plugin : IDalamudPlugin
         WindowSystem.AddWindow(MinCountPopup);
 
         _uiReader = new Ui.UiReader(GameGui);
+        _autoRetainerIntegration = new AutoRetainerIntegration(this);
 
         _mbIntervalSec = Configuration.MbBaseIntervalSeconds;
 
@@ -175,6 +177,9 @@ public unsafe sealed partial class Plugin : IDalamudPlugin
 
         _universalisClient.Dispose();
         _smartSorter.Dispose();
+
+        BestEffortCleanupAutoRetainerUi();
+        _autoRetainerIntegration.Dispose();
 
         ECommonsMain.Dispose();
     }
@@ -295,6 +300,7 @@ public unsafe sealed partial class Plugin : IDalamudPlugin
 
         ResetRunState();
         _runMode = mode;
+        _runOrigin = RunOrigin.RetainerList;
 
         var count = list->GetItemCount();
         for (int i = 0; i < count; i++)
@@ -352,6 +358,7 @@ public unsafe sealed partial class Plugin : IDalamudPlugin
 
         ResetRunState();
         _runMode = mode;
+        _runOrigin = RunOrigin.RetainerList;
 
         var list = _uiReader.GetRetainerList();
         if (list == null)
@@ -401,9 +408,23 @@ public unsafe sealed partial class Plugin : IDalamudPlugin
 
     internal void StopRun()
     {
+        if (IsRunning && _runOrigin == RunOrigin.AutoRetainerMenu)
+        {
+            RequestAutoRetainerCleanup("stop requested");
+            return;
+        }
+
+        StopRunImmediately("[RR] Stopped.");
+    }
+
+    private void StopRunImmediately(string logMessage)
+    {
         IsRunning = false;
         _runPhase = RunPhase.Idle;
         _runMode = RunMode.PriceAndSell;
+        _runOrigin = RunOrigin.RetainerList;
+        _autoRetainerRunStartedUtc = DateTime.MinValue;
+        _autoRetainerCleanupStartedUtc = DateTime.MinValue;
 
         _retainerRowOrder.Clear();
         _retainerRowPos = -1;
@@ -440,7 +461,7 @@ public unsafe sealed partial class Plugin : IDalamudPlugin
 
         ResetUniversalisGateState();
 
-        Log.Information("[RR] Stopped.");
+        Log.Information(logMessage);
     }
 
     private void ResetRunState()
@@ -945,6 +966,56 @@ public unsafe sealed partial class Plugin : IDalamudPlugin
     {
         QueuePostSellPruneIfNeeded();
         _runPhase = RunPhase.ExitToRetainerList;
+    }
+
+    private void PrepareRetainerForProcessing(RetainerRowEntry entry)
+    {
+        _sellListCountCaptured = false;
+        _listedCountThisRetainer = 0;
+        _slotIndexToOpen = 0;
+
+        _sellQueue.Clear();
+        if (Configuration.EnablePerRetainerCaps)
+            _retainerSellCounts.Clear();
+        _retainerExistingSellCounts.Clear();
+        _needsExistingListingScan = Configuration.EnablePerRetainerCaps;
+
+        foreach (var sellEntry in Configuration.GetSellListOrdered())
+        {
+            if (sellEntry.ItemId == 0)
+                continue;
+
+            sellEntry.EnsureRetainerCaps();
+            sellEntry.EnsureRetainerStackSizes();
+            _sellQueue.Add(new SellCandidate
+            {
+                ItemId = sellEntry.ItemId,
+                IsHq = sellEntry.IsHq,
+                MinCountToSell = Math.Max(1, sellEntry.MinCountToSell),
+                Name = sellEntry.Name ?? string.Empty,
+                RetainerCaps = sellEntry.RetainerCaps,
+                RetainerStackSizes = sellEntry.RetainerStackSizes,
+                StackSizeMax = GetStackSizeCap(sellEntry.ItemId),
+            });
+        }
+
+        _sellCapacityThisRetainer = 0;
+        _soldThisRetainer = 0;
+        _processingListedItem = true;
+        _currentSellItemId = 0;
+        _currentSellItemIsHq = false;
+        _currentSellStackSize = 0;
+        _hasPendingSellSlot = false;
+        ResetNewListingAttempt();
+        _failedSellSlotKeys.Clear();
+
+        _mbIntervalSec = MbBaseIntervalSeconds;
+        _lastMbQueryUtc = DateTime.MinValue;
+
+        _currentRetainerAllowsReprice = entry.AllowReprice;
+        _currentRetainerAllowsSell = entry.AllowSell;
+        _currentRetainerRowIndex = entry.RowIndex;
+        _currentRetainerName = entry.Name ?? string.Empty;
     }
 
     #endregion
