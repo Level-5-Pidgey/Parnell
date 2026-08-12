@@ -168,6 +168,12 @@ public unsafe sealed partial class Plugin
         set => _sellState.ProcessingListedItem = value;
     }
 
+    private bool _quickListRun
+    {
+        get => _sellState.QuickListRun;
+        set => _sellState.QuickListRun = value;
+    }
+
     private uint _currentSellItemId
     {
         get => _sellState.CurrentSellItemId;
@@ -484,6 +490,7 @@ public unsafe sealed partial class Plugin
         public int SellCapacityThisRetainer { get; set; }
         public int SoldThisRetainer { get; set; }
         public bool ProcessingListedItem { get; set; } = true;
+        public bool QuickListRun { get; set; }
         public uint CurrentSellItemId { get; set; }
         public bool CurrentSellItemIsHq { get; set; }
         public int CurrentSellStackSize { get; set; }

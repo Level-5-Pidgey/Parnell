@@ -11,6 +11,12 @@ public unsafe sealed partial class Plugin
 {
     private void OnFrameworkUpdate(IFramework framework)
     {
+        if (_dismissContextMenuNextTick)
+        {
+            _dismissContextMenuNextTick = false;
+            FireContextMenuDismiss();
+        }
+
         if (!IsRunning) return;
 
         var now = DateTime.UtcNow;

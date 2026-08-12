@@ -172,12 +172,14 @@ public unsafe sealed partial class Plugin
         var unit = (AtkUnitBase*)addon.Address;
         if (unit == null || !unit->IsVisible) return false;
 
-        Callback.Fire(unit, updateState: true, 0, 0);
-        Callback.Fire(unit, updateState: true, 1, 0);
+        Callback.Fire(unit, updateState: true, -1);
 
         Log.Verbose("[CTX] Dismiss callbacks fired");
         return true;
     }
+
+    internal void DismissContextMenuIfOpen()
+        => _dismissContextMenuNextTick = true;
 
     private bool TrySelectRetainerContextMenuAdjustPrice()
     {

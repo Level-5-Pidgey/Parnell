@@ -71,6 +71,7 @@ public unsafe sealed partial class Plugin : IDalamudPlugin
     public readonly WindowSystem WindowSystem = new("RetainerRepricer");
 
     internal bool IsRunning;
+    private bool _dismissContextMenuNextTick;
 
     private readonly UniversalisApiClient _universalisClient;
     private readonly SellListSmartSorter _smartSorter;
@@ -277,8 +278,11 @@ public unsafe sealed partial class Plugin : IDalamudPlugin
         }
     }
 
-    internal int GetStackSizeCap(uint itemId)
+    internal int GetStackSizeCap(uint itemId, InventoryType? inventoryType = null)
     {
+        if (inventoryType == InventoryType.Crystals)
+            return 9999;
+
         if (itemId >= 2 && itemId <= 19)
             return 9999;
 
@@ -288,6 +292,70 @@ public unsafe sealed partial class Plugin : IDalamudPlugin
     #endregion
 
     #region Start/stop helpers
+
+    internal bool IsQuickListVisible()
+        => IsAddonVisible("RetainerSellList");
+
+    internal bool CanStartQuickList()
+    {
+        if (IsRunning || !IsAddonVisible("RetainerSellList"))
+            return false;
+
+        var listed = ReadCurrentRetainerSellListCount();
+        return listed.HasValue && listed.Value < 20;
+    }
+
+    internal bool StartQuickListFromInventory(int container, int slot)
+    {
+        if (!CanStartQuickList())
+        {
+            Log.Verbose("[RR][QuickList] Start rejected: RetainerSellList unavailable, full, or a run is active.");
+            return false;
+        }
+
+        var inventoryType = (InventoryType)container;
+        if (!_uiReader.TryGetInventorySlot(inventoryType, slot, out var inventorySlot) || inventorySlot == null)
+            return false;
+
+        var itemId = inventorySlot->GetBaseItemId();
+        if (itemId == 0 || inventorySlot->Quantity <= 0)
+            return false;
+
+        var itemRow = ECommons.DalamudServices.Svc.Data.GetExcelSheet<Lumina.Excel.Sheets.Item>()?.GetRowOrDefault(itemId);
+        if (!Ui.UiReader.IsInventorySlotSellable(inventorySlot, itemRow))
+            return false;
+
+        var isHq = inventorySlot->IsHighQuality();
+        var maxStackSize = GetStackSizeCap(itemId, inventoryType);
+        var stackSize = Math.Min((int)inventorySlot->Quantity, maxStackSize);
+        var listedCount = ReadCurrentRetainerSellListCount();
+        if (!listedCount.HasValue || listedCount.Value >= 20 || stackSize <= 0)
+            return false;
+
+        ResetRunState();
+        _runMode = RunMode.PriceAndSell;
+        IsRunning = true;
+        _runPhase = RunPhase.Sell_OpenRetainerSellFromInventory;
+        _lastActionUtc = DateTime.MinValue;
+        _quickListRun = true;
+        _currentRetainerAllowsReprice = true;
+        _currentRetainerAllowsSell = true;
+        _listedCountThisRetainer = listedCount.Value;
+        _sellCapacityThisRetainer = 20 - listedCount.Value;
+        _currentSellItemId = itemId;
+        _currentSellItemIsHq = isHq;
+        _currentSellStackSize = stackSize;
+        _pendingSellSlot = new InventorySlotRef { Container = container, Slot = slot };
+        _hasPendingSellSlot = true;
+        _processingListedItem = false;
+        BeginNewListingAttempt(_pendingSellSlot, itemId, isHq, stackSize, listedCount.Value, (int)inventorySlot->Quantity,
+            DateTime.UtcNow);
+        FireContextMenuDismiss();
+
+        Log.Information("[RR][QuickList] Started itemId={ItemId} hq={IsHq} quantity={Quantity} container={Container} slot={Slot}",
+            itemId, isHq, stackSize, container, slot);
+        return true;
+    }
 
     internal unsafe bool StartRunFromRetainerList(RunMode mode = RunMode.PriceAndSell, bool notifyChatOnFailure = false)
     {
@@ -446,6 +514,7 @@ public unsafe sealed partial class Plugin : IDalamudPlugin
         _soldThisRetainer = 0;
 
         _processingListedItem = true;
+        _quickListRun = false;
         _currentSellItemId = 0;
         _currentSellItemIsHq = false;
         _currentSellStackSize = 0;
@@ -486,6 +555,7 @@ public unsafe sealed partial class Plugin : IDalamudPlugin
         _soldThisRetainer = 0;
 
         _processingListedItem = true;
+        _quickListRun = false;
         _currentSellItemId = 0;
         _currentSellItemIsHq = false;
         _currentSellStackSize = 0;

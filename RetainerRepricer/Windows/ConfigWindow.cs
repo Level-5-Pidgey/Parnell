@@ -32,6 +32,8 @@ public sealed class ConfigWindow : Window, IDisposable
     private static readonly Configuration DefaultConfig = new();
     private static readonly ContextMenuQuickAddModifier[] QuickAddModifierOptions =
         Enum.GetValues<ContextMenuQuickAddModifier>();
+    private static readonly ContextMenuQuickListModifier[] QuickListModifierOptions =
+        Enum.GetValues<ContextMenuQuickListModifier>();
     private bool _sellListTabWasOpenLastFrame;
     private bool _forceCollapseSellListRows;
     private bool _perRetainerCapsLastEnabled;
@@ -965,6 +967,10 @@ public sealed class ConfigWindow : Window, IDisposable
 
         ImGui.Spacing();
 
+        DrawContextMenuQuickListModifierSetting();
+
+        ImGui.Spacing();
+
         var showTooltips = _config.ShowTooltips;
         if (ImGui.Checkbox("Show UI tooltips", ref showTooltips))
         {
@@ -1032,6 +1038,45 @@ public sealed class ConfigWindow : Window, IDisposable
         {
             TooltipHelper.Show(_config,
                 "Hold this modifier while right-clicking an inventory item to add it directly to the sell list."
+            );
+        }
+    }
+
+    private void DrawContextMenuQuickListModifierSetting()
+    {
+        var modifier = SanitizeContextMenuQuickListModifier(_config.ContextMenuQuickListModifier);
+        if (modifier != _config.ContextMenuQuickListModifier)
+        {
+            _config.ContextMenuQuickListModifier = modifier;
+            SaveConfig();
+        }
+
+        var preview = GetContextMenuQuickListModifierLabel(modifier);
+        ImGui.SetNextItemWidth(190f);
+        if (ImGui.BeginCombo("Quick list modifier key", preview))
+        {
+            foreach (var option in QuickListModifierOptions)
+            {
+                var isSelected = modifier == option;
+                if (ImGui.Selectable(GetContextMenuQuickListModifierLabel(option), isSelected))
+                {
+                    _config.ContextMenuQuickListModifier = option;
+                    Plugin.Log.Information("[RR][Config] Context quick list modifier={Modifier}", option);
+                    SaveConfig();
+                    modifier = option;
+                }
+
+                if (isSelected)
+                    ImGui.SetItemDefaultFocus();
+            }
+
+            ImGui.EndCombo();
+        }
+
+        if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
+        {
+            TooltipHelper.Show(_config,
+                "Hold this modifier while right-clicking an inventory item to list its full stack immediately."
             );
         }
     }
@@ -1798,6 +1843,9 @@ public sealed class ConfigWindow : Window, IDisposable
     private static ContextMenuQuickAddModifier SanitizeContextMenuQuickAddModifier(ContextMenuQuickAddModifier modifier)
         => Enum.IsDefined(modifier) ? modifier : ContextMenuQuickAddModifier.None;
 
+    private static ContextMenuQuickListModifier SanitizeContextMenuQuickListModifier(ContextMenuQuickListModifier modifier)
+        => Enum.IsDefined(modifier) ? modifier : ContextMenuQuickListModifier.None;
+
     private static string GetContextMenuQuickAddModifierLabel(ContextMenuQuickAddModifier modifier)
         => modifier switch
         {
@@ -1811,6 +1859,22 @@ public sealed class ConfigWindow : Window, IDisposable
             ContextMenuQuickAddModifier.Alt => "Alt",
             ContextMenuQuickAddModifier.LeftAlt => "Left Alt",
             ContextMenuQuickAddModifier.RightAlt => "Right Alt",
+            _ => "Disabled",
+        };
+
+    private static string GetContextMenuQuickListModifierLabel(ContextMenuQuickListModifier modifier)
+        => modifier switch
+        {
+            ContextMenuQuickListModifier.None => "Disabled",
+            ContextMenuQuickListModifier.Shift => "Shift",
+            ContextMenuQuickListModifier.LeftShift => "Left Shift",
+            ContextMenuQuickListModifier.RightShift => "Right Shift",
+            ContextMenuQuickListModifier.Ctrl => "Ctrl",
+            ContextMenuQuickListModifier.LeftCtrl => "Left Ctrl",
+            ContextMenuQuickListModifier.RightCtrl => "Right Ctrl",
+            ContextMenuQuickListModifier.Alt => "Alt",
+            ContextMenuQuickListModifier.LeftAlt => "Left Alt",
+            ContextMenuQuickListModifier.RightAlt => "Right Alt",
             _ => "Disabled",
         };
 
