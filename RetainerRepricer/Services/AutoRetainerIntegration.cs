@@ -17,6 +17,7 @@ internal sealed class AutoRetainerIntegration : IDisposable
         _api = new AutoRetainerApi();
         _api.OnRetainerPostprocessStep += OnRetainerPostprocessStep;
         _api.OnRetainerReadyToPostprocess += OnRetainerReadyToPostprocess;
+        _api.OnCharacterPostprocessStep += OnCharacterPostprocessStep;
     }
 
     internal bool IsAvailable => !_disposed && _api.Ready;
@@ -74,6 +75,14 @@ internal sealed class AutoRetainerIntegration : IDisposable
         }
     }
 
+    private void OnCharacterPostprocessStep()
+    {
+        if (_disposed)
+            return;
+
+        _plugin.OnAutoRetainerCharacterPostprocessStep();
+    }
+
     internal void Complete()
     {
         if (!_claimed)
@@ -98,6 +107,7 @@ internal sealed class AutoRetainerIntegration : IDisposable
 
         _api.OnRetainerPostprocessStep -= OnRetainerPostprocessStep;
         _api.OnRetainerReadyToPostprocess -= OnRetainerReadyToPostprocess;
+        _api.OnCharacterPostprocessStep -= OnCharacterPostprocessStep;
         Complete();
         _api.Dispose();
         _disposed = true;

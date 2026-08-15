@@ -517,6 +517,10 @@ public unsafe sealed partial class Plugin
     {
         public HashSet<string> MyRetainers { get; } = new(StringComparer.Ordinal);
         public Dictionary<string, string> MyRetainerLabels { get; } = new(StringComparer.Ordinal);
+        public Dictionary<RepricingCacheKey, CachedRepricingDecision> RepricingCache { get; } =
+            new(RepricingCacheKeyComparer.Instance);
+        public ulong RepricingCacheCharacterId { get; set; }
+        public RepricingCacheKey? CurrentRepricingCacheKey { get; set; }
         public bool CurrentIsHq { get; set; }
         public int? StagedDesiredPrice { get; set; }
         public string StagedReferenceSeller { get; set; } = string.Empty;

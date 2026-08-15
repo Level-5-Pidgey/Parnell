@@ -67,6 +67,7 @@ public unsafe sealed partial class Plugin
         }
 
         ResetRunState();
+        ValidateRepricingCacheCharacter();
         _runMode = RunMode.PriceAndSell;
         _runOrigin = RunOrigin.AutoRetainerMenu;
         _autoRetainerRunStartedUtc = DateTime.UtcNow;
@@ -86,6 +87,11 @@ public unsafe sealed partial class Plugin
 
         Log.Information("[RR][AutoRetainer] Started automatic run for '{Retainer}'.", retainerName);
         return true;
+    }
+
+    internal void OnAutoRetainerCharacterPostprocessStep()
+    {
+        ClearRepricingCache("AutoRetainer finished the character");
     }
 
     private bool TryGetRetainerMarketItemCount(string retainerName, out int marketItemCount)

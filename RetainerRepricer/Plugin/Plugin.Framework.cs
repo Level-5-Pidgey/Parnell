@@ -11,6 +11,8 @@ public unsafe sealed partial class Plugin
 {
     private void OnFrameworkUpdate(IFramework framework)
     {
+        ValidateRepricingCacheCharacter();
+
         if (_dismissContextMenuNextTick)
         {
             _dismissContextMenuNextTick = false;

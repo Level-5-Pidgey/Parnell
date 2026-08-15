@@ -436,13 +436,29 @@ public unsafe sealed partial class Plugin
                     }
 
                     ResetUniversalisGateState();
+                    _marketState.CurrentRepricingCacheKey = null;
 
                     Log.Information($"[RR] Sell capture: item='{name}' currentPrice={priceOpt.Value}");
 
                     if (_processingListedItem)
-                    {
                         RecordExistingListingForCaps(name, _currentIsHq);
 
+                    var shouldResolvePrice = _processingListedItem
+                        ? ShouldRepriceThisRetainer
+                        : ShouldSellThisRetainer;
+
+                    if (shouldResolvePrice && TryGetRepricingCacheKey(name, _currentIsHq, out var cacheKey))
+                    {
+                        _marketState.CurrentRepricingCacheKey = cacheKey;
+                        if (TryUseCachedRepricingDecision(cacheKey, priceOpt.Value))
+                        {
+                            _lastActionUtc = now;
+                            return;
+                        }
+                    }
+
+                    if (_processingListedItem)
+                    {
                         if (ShouldRepriceThisRetainer)
                         {
                             _runPhase = RunPhase.OpenComparePrices;
@@ -930,6 +946,8 @@ public unsafe sealed partial class Plugin
                         ? lowestPrice
                         : DecideNewPrice(lowestPrice, referenceIsMine);
 
+                    CacheCurrentRepricingDecision(desired, lowestSeller, referenceIsMine);
+
                     var sellAddonPeek = GameGui.GetAddonByName("RetainerSell", 1);
                     if (sellAddonPeek.IsNull) return;
 
@@ -1016,6 +1034,9 @@ public unsafe sealed partial class Plugin
                             _stagedDesiredPrice = price;
                             _stagedReferenceSeller = "Universalis Average";
                             _stagedReferenceIsMine = false;
+                            _hasAppliedStagedPrice = false;
+
+                            CacheCurrentRepricingDecision(price, _stagedReferenceSeller, referenceIsMine: false);
 
                             Log.Information($"[RR][NoItems] Using Universalis average {result.Value:0} -> {price} for item {itemId} (HQ={_currentIsHq}).");
 
@@ -1041,9 +1062,17 @@ public unsafe sealed partial class Plugin
             case RunPhase.CloseMarketThenApply:
                 {
                     if (MarketWindowsStillOpen())
+                    {
+                        CloseMarketWindows();
+                        _lastActionUtc = now;
                         return;
+                    }
 
-                    if (!retainerSellVisible) return;
+                    if (!retainerSellVisible)
+                    {
+                        RecoverAfterRetainerSellClosed("waiting to apply price", now);
+                        return;
+                    }
 
                     if (_stagedDesiredPrice is null)
                     {
@@ -1092,7 +1121,11 @@ public unsafe sealed partial class Plugin
 
             case RunPhase.ConfirmAfterApply:
                 {
-                    if (!retainerSellVisible) return;
+                    if (!retainerSellVisible)
+                    {
+                        RecoverAfterRetainerSellClosed("waiting to confirm price", now);
+                        return;
+                    }
 
                     if (_stagedDesiredPrice is null)
                     {
@@ -1103,7 +1136,11 @@ public unsafe sealed partial class Plugin
                     }
 
                     if (MarketWindowsStillOpen())
+                    {
+                        CloseMarketWindows();
+                        _lastActionUtc = now;
                         return;
+                    }
 
                     var desired = _stagedDesiredPrice.Value;
                     var uiPrice = _uiReader.ReadRetainerSellAskingPrice();

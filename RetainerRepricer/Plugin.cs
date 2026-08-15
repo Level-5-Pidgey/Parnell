@@ -181,6 +181,7 @@ public unsafe sealed partial class Plugin : IDalamudPlugin
 
         BestEffortCleanupAutoRetainerUi();
         _autoRetainerIntegration.Dispose();
+        ClearRepricingCache("plugin disposed");
 
         ECommonsMain.Dispose();
     }
@@ -333,6 +334,7 @@ public unsafe sealed partial class Plugin : IDalamudPlugin
             return false;
 
         ResetRunState();
+        StartFreshRepricingCache("Quick List started");
         _runMode = RunMode.PriceAndSell;
         IsRunning = true;
         _runPhase = RunPhase.Sell_OpenRetainerSellFromInventory;
@@ -367,6 +369,7 @@ public unsafe sealed partial class Plugin : IDalamudPlugin
         }
 
         ResetRunState();
+        StartFreshRepricingCache("manual run started");
         _runMode = mode;
         _runOrigin = RunOrigin.RetainerList;
 
@@ -425,6 +428,7 @@ public unsafe sealed partial class Plugin : IDalamudPlugin
         }
 
         ResetRunState();
+        StartFreshRepricingCache("manual run started");
         _runMode = mode;
         _runOrigin = RunOrigin.RetainerList;
 
@@ -487,6 +491,8 @@ public unsafe sealed partial class Plugin : IDalamudPlugin
 
     private void StopRunImmediately(string logMessage)
     {
+        var preserveRepricingCache = _runOrigin == RunOrigin.AutoRetainerMenu;
+
         IsRunning = false;
         _runPhase = RunPhase.Idle;
         _runMode = RunMode.PriceAndSell;
@@ -530,12 +536,17 @@ public unsafe sealed partial class Plugin : IDalamudPlugin
 
         ResetUniversalisGateState();
 
+        _marketState.CurrentRepricingCacheKey = null;
+        if (!preserveRepricingCache)
+            ClearRepricingCache("manual run stopped");
+
         Log.Information(logMessage);
     }
 
     private void ResetRunState()
     {
         ResetUniversalisGateState();
+        _marketState.CurrentRepricingCacheKey = null;
 
         RebuildMyRetainersSet();
 
