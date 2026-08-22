@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 
 using Dalamud.Game;
@@ -9,6 +10,7 @@ using ECommons.Automation;
 using ECommons.DalamudServices;
 
 using FFXIVClientStructs.FFXIV.Client.Game;
+using FFXIVClientStructs.FFXIV.Client.UI;
 using FFXIVClientStructs.FFXIV.Component.GUI;
 
 using Lumina.Excel.Sheets;
@@ -41,8 +43,12 @@ internal sealed unsafe class UiReader
     private static readonly string[] InventoryGridAddonNames =
     {
         "InventoryGrid",
+        "InventoryGrid0",
         "InventoryGrid1",
         "InventoryGrid0E",
+        "InventoryGrid1E",
+        "InventoryGrid2E",
+        "InventoryGrid3E",
     };
 
     #endregion
@@ -586,6 +592,105 @@ internal sealed unsafe class UiReader
         Callback.Fire(unit, updateState: true, 15, container, slot);
         return true;
     }
+
+    public void DumpInventoryGridState(uint itemId, Action<string> log)
+    {
+        var itemRow = Svc.Data.GetExcelSheet<Item>()?.GetRowOrDefault(itemId);
+        if (!itemRow.HasValue)
+        {
+            log($"[INV][Grid] Item sheet row not found for itemId={itemId}.");
+            return;
+        }
+
+        var targetLocations = new List<(InventoryType Container, int Slot)>();
+        var inventory = InventoryManager.Instance();
+        if (inventory != null)
+        {
+            foreach (var containerType in SellScanContainers)
+            {
+                var container = inventory->GetInventoryContainer(containerType);
+                if (container == null || !container->IsLoaded)
+                    continue;
+
+                for (var slotIndex = 0; slotIndex < container->Size; slotIndex++)
+                {
+                    var slot = container->GetInventorySlot(slotIndex);
+                    if (slot != null && slot->Quantity > 0 && slot->GetBaseItemId() == itemId)
+                        targetLocations.Add((containerType, slotIndex));
+                }
+            }
+        }
+
+        log($"[INV][Grid] Target itemId={itemId} itemSheetIconId={itemRow.Value.Icon} locations={string.Join(", ", targetLocations.Select(x => $"{x.Container}:{x.Slot}"))}");
+
+        if (targetLocations.Count == 0)
+        {
+            log($"[INV][Grid] No loaded inventory location found for itemId={itemId}.");
+            return;
+        }
+
+        var rendererCount = 0;
+        foreach (var location in targetLocations)
+        {
+            foreach (var addonName in GetInventoryGridAddonNames(location.Container))
+            {
+                for (var addonIndex = 1; addonIndex <= 10; addonIndex++)
+                {
+                    var addon = _gui.GetAddonByName(addonName, addonIndex);
+                    if (addon.IsNull)
+                        continue;
+
+                    var unit = (AtkUnitBase*)addon.Address;
+                    if (unit == null || !unit->IsVisible)
+                        continue;
+
+                    var grid = (AddonInventoryGrid*)unit;
+                    var slotIndex = location.Slot;
+                    if (slotIndex < 0 || slotIndex >= 35)
+                        continue;
+
+                    var dragDrop = grid->Slots[slotIndex].Value;
+                    if (dragDrop == null)
+                    {
+                        log($"[INV][Grid] target={location.Container}:{location.Slot} addon={addonName} index={addonIndex} slot={slotIndex} component=null");
+                        continue;
+                    }
+
+                    rendererCount++;
+                    var icon = dragDrop->AtkComponentIcon;
+                    var iconImage = icon == null ? null : icon->IconImage;
+                    var ownerNode = dragDrop->AtkResNode;
+
+                    var ownerState = ownerNode == null
+                        ? "owner=null"
+                        : $"ownerVisible={ownerNode->IsVisible()} ownerFlags=0x{ownerNode->NodeFlags:X} ownerDraw=0x{ownerNode->DrawFlags:X} ownerAlpha={ownerNode->Color.A}";
+                    var iconState = icon == null
+                        ? "icon=null"
+                        : $"iconId={icon->IconId} iconFlags=0x{icon->Flags:X}";
+                    var imageState = iconImage == null
+                        ? "image=null"
+                        : $"imageVisible={iconImage->IsVisible()} imageFlags=0x{iconImage->NodeFlags:X} imageDraw=0x{iconImage->DrawFlags:X} imageColor=({iconImage->Color.R},{iconImage->Color.G},{iconImage->Color.B},{iconImage->Color.A})";
+
+                    log($"[INV][Grid] target={location.Container}:{location.Slot} addon={addonName} index={addonIndex} slot={slotIndex} componentFlags=0x{dragDrop->ComponentFlags:X} acceptedType={dragDrop->AcceptedType} visibilityFlags={dragDrop->VisibilityFlags} inputMode={dragDrop->InputMode} dragFlags=0x{dragDrop->Flags:X}({dragDrop->Flags}) {iconState} {imageState} {ownerState}");
+                }
+            }
+        }
+
+        log(rendererCount == 0
+            ? $"[INV][Grid] No visible mapped renderer found for itemId={itemId}."
+            : $"[INV][Grid] Found {rendererCount} visible mapped renderer(s) for itemId={itemId}.");
+    }
+
+    private static string[] GetInventoryGridAddonNames(InventoryType containerType)
+        => containerType switch
+        {
+            InventoryType.Inventory1 => new[] { "InventoryGrid0" },
+            InventoryType.Inventory2 => new[] { "InventoryGrid1" },
+            InventoryType.Inventory3 => new[] { "InventoryGrid0E" },
+            InventoryType.Inventory4 => new[] { "InventoryGrid1E" },
+            InventoryType.Crystals => new[] { "InventoryGrid2E", "InventoryGrid3E" },
+            _ => Array.Empty<string>(),
+        };
 
     private AtkUnitBase* ResolveInventoryGridUnit()
     {

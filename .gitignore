@@ -5,6 +5,7 @@ bin/
 !/bin/
 /bin/*
 !/bin/release.sh
+!/bin/post-release.sh
 *.user
 AGENTS.md
 RetainerRepricer/Properties/

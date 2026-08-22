@@ -47,13 +47,8 @@ public sealed partial class Plugin
                 OpenLogWindow();
                 return;
 
-            case "debuguniv":
-            case "debuguniversalis":
-                HandleDebugUniversalisCommand(tokens);
-                return;
-
-            case "debughq":
-                HandleDebugHqCommand();
+            case "debug":
+                OpenDebugWindow();
                 return;
 
             default:
@@ -84,33 +79,7 @@ public sealed partial class Plugin
         PrintError("Not currently running.");
     }
 
-    private void HandleDebugUniversalisCommand(string[] tokens)
-    {
-        if (tokens.Length < 2 || !uint.TryParse(tokens[1], out var itemId) || itemId == 0)
-        {
-            PrintError("Usage: /repricer debuguniv <itemId> [hq|nq]");
-            return;
-        }
-
-        var qualityArg = tokens.Length > 2 ? tokens[2].ToLowerInvariant() : string.Empty;
-        var isHq = qualityArg switch
-        {
-            "nq" or "normal" or "low" => false,
-            "hq" or "high" => true,
-            _ => true,
-        };
-
-        PrintInfo($"Running Universalis debug for item {itemId} (HQ={isHq}); results will be logged.");
-        _ = DumpUniversalisDebugAsync(itemId, isHq);
-    }
-
-    private void HandleDebugHqCommand()
-    {
-        PrintInfo("Running HQ icon debug for current ItemSearchResult; results will be logged.");
-        DumpMarketRows();
-    }
-
-    private async Task DumpUniversalisDebugAsync(uint itemId, bool isHq)
+    internal async Task DumpUniversalisDebugAsync(uint itemId, bool isHq)
     {
         var region = GetWorldDcRegionKey();
         if (string.IsNullOrWhiteSpace(region))
@@ -183,5 +152,6 @@ public sealed partial class Plugin
         PrintInfo("/repricer stop - Stop the current run and unwind open UI");
         PrintInfo("/repricer config | c - Open the Settings tab of the configuration window");
         PrintInfo("/repricer logs | log - Open the plugin log window");
+        PrintInfo("/repricer debug - Open the button-driven debug window");
     }
 }

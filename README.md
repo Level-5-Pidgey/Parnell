@@ -117,7 +117,6 @@ When the plugin is on, right-clicking items in your inventory gives you extra op
 - `/repricer stop` — stop and close any open menus.
 - `/repricer config` or `/repricer c` — open the settings window.
 - `/repricer logs` or `/repricer log` — open the in-game log viewer.
-
 The overlay near the retainer list has the same Start, Stop, and Config buttons.
 
 ---

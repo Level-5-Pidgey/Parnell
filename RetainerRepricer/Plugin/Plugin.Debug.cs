@@ -1,16 +1,18 @@
 using System;
 
+using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Component.GUI;
+using Lumina.Excel.Sheets;
 using RetainerRepricer.Services;
 
 namespace RetainerRepricer;
 
 /// <summary>
-/// Debug helpers exposed via /repricer commands.
+/// Debug helpers invoked by the button-driven Debug Window.
 /// </summary>
 public unsafe sealed partial class Plugin
 {
-    private void TestUniversalisGate()
+    internal void TestUniversalisGateForDebug()
     {
         if (!IsAddonOpen("ItemSearchResult"))
         {
@@ -152,7 +154,7 @@ public unsafe sealed partial class Plugin
         ChatGui.Print("[RetainerRepricer] TestGate complete - check log for details.");
     }
 
-    private void DumpMarketRows()
+    internal void DumpMarketRowsForDebug()
     {
         if (!IsAddonOpen("ItemSearchResult"))
         {
@@ -216,7 +218,7 @@ public unsafe sealed partial class Plugin
         Log.Information($"[MB][HQ] summary: visible={visibleCount} hidden={hiddenCount} draw0={drawZeroCount} draw100={drawHundredCount} draw102={drawHundredTwoCount}");
     }
 
-    private void DumpRetainerRows()
+    internal void DumpRetainerRowsForDebug()
     {
         var list = _uiReader.GetRetainerList();
         if (list == null)
@@ -236,5 +238,125 @@ public unsafe sealed partial class Plugin
 
             Log.Information($"[RL] row {i}: {GetRetainerLabelForLog(i)}");
         }
+    }
+
+    internal void DumpInventoryByItemIdForDebug(uint itemId)
+    {
+        var itemRow = ECommons.DalamudServices.Svc.Data.GetExcelSheet<Item>()?.GetRowOrDefault(itemId);
+        Log.Information("[INV][Dump] Searching all inventory slots for itemId={ItemId}.", itemId);
+
+        if (!itemRow.HasValue)
+        {
+            Log.Warning("[INV][Dump] Item sheet row not found for itemId={ItemId}.", itemId);
+            return;
+        }
+
+        Log.Information("[INV][Dump] Sheet: name='{Name}' isUntradable={IsUntradable}.",
+            itemRow.Value.Name.ToString(), itemRow.Value.IsUntradable);
+
+        var inventory = InventoryManager.Instance();
+        if (inventory == null)
+        {
+            Log.Warning("[INV][Dump] InventoryManager is unavailable.");
+            return;
+        }
+
+        var containers = new[]
+        {
+            InventoryType.Inventory1,
+            InventoryType.Inventory2,
+            InventoryType.Inventory3,
+            InventoryType.Inventory4,
+            InventoryType.Crystals,
+        };
+
+        var matchCount = 0;
+        foreach (var containerType in containers)
+        {
+            var container = inventory->GetInventoryContainer(containerType);
+            if (container == null || !container->IsLoaded)
+                continue;
+
+            for (var slotIndex = 0; slotIndex < container->Size; slotIndex++)
+            {
+                var slot = container->GetInventorySlot(slotIndex);
+                if (slot == null || slot->Quantity <= 0 || slot->GetBaseItemId() != itemId)
+                    continue;
+
+                matchCount++;
+                var flags = slot->GetFlags();
+                var spiritbondOrCollectability = slot->GetSpiritbondOrCollectability();
+                var currentSellable = Ui.UiReader.IsInventorySlotSellable(slot, itemRow);
+                var reason = GetInventorySellabilityReason(slot, itemRow);
+
+                Log.Information(
+                    "[INV][Dump] container={Container}({ContainerId}) slot={Slot} rawItemId={RawItemId} baseItemId={BaseItemId} fullItemId={FullItemId} quantity={Quantity} flags=0x{Flags:X2}({FlagNames}) hq={Hq} collectable={Collectable} collectability={Collectability} spiritbondOrCollectability={SpiritbondOrCollectability} condition={Condition} conditionPercent={ConditionPercent} symbolic={Symbolic} linkedContainer={LinkedContainer} linkedSlot={LinkedSlot} glamourId={GlamourId} crafterContentId={CrafterContentId} eventId={EventId} pluginSellable={Sellable} reason={Reason}",
+                    containerType,
+                    (int)containerType,
+                    slotIndex,
+                    slot->ItemId,
+                    slot->GetBaseItemId(),
+                    slot->GetItemId(),
+                    slot->Quantity,
+                    (byte)flags,
+                    flags,
+                    slot->IsHighQuality(),
+                    slot->IsCollectable(),
+                    slot->GetCollectability(),
+                    spiritbondOrCollectability,
+                    slot->Condition,
+                    slot->GetConditionPercentage(),
+                    slot->IsSymbolic,
+                    slot->LinkedInventoryType,
+                    slot->LinkedItemSlot,
+                    slot->GetGlamourId(),
+                    slot->GetCrafterContentId(),
+                    slot->EventId,
+                    currentSellable,
+                    reason);
+
+                for (byte materiaIndex = 0; materiaIndex < 5; materiaIndex++)
+                {
+                    Log.Information("[INV][Dump] container={Container} slot={Slot} materia[{Index}] id={MateriaId} grade={Grade}",
+                        containerType,
+                        slotIndex,
+                        materiaIndex,
+                        slot->GetMateriaId(materiaIndex),
+                        slot->GetMateriaGrade(materiaIndex));
+                }
+
+                Log.Information("[INV][Dump] container={Container} slot={Slot} stain[0]={Stain0} stain[1]={Stain1}",
+                    containerType,
+                    slotIndex,
+                    slot->GetStain(0),
+                    slot->GetStain(1));
+            }
+        }
+
+        Log.Information("[INV][Dump] Completed itemId={ItemId}; matchingSlots={MatchCount}.", itemId, matchCount);
+    }
+
+    internal void DumpInventoryGridForDebug(uint itemId)
+    {
+        Log.Information("[INV][Grid] Dumping visible renderer candidates for itemId={ItemId}.", itemId);
+        _uiReader.DumpInventoryGridState(itemId, message => Log.Information(message));
+        Log.Information("[INV][Grid] Targeted InventoryGrid dump complete for itemId={ItemId}.", itemId);
+    }
+
+    private static string GetInventorySellabilityReason(InventoryItem* slot, Item? itemRow)
+    {
+        if (slot == null)
+            return "null_slot";
+
+        if (!itemRow.HasValue)
+            return "missing_item_sheet";
+
+        if (itemRow.Value.IsUntradable)
+            return "item_sheet_untradable";
+
+        if (!slot->IsCollectable() && slot->GetSpiritbondOrCollectability() != 0)
+            return "spiritbond_or_collectability_nonzero";
+
+        return "passes_current_filter";
     }
 }

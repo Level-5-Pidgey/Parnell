@@ -14,6 +14,7 @@ namespace RetainerRepricer;
 public unsafe sealed partial class Plugin
 {
     private const double RetainerContextMenuTimeoutSeconds = 2.0d;
+    private const double NewListingRetainerSellTimeoutSeconds = 5.0d;
     #region Run tick (state machine)
 
     internal unsafe void TickRun()
@@ -354,6 +355,15 @@ public unsafe sealed partial class Plugin
 
             case RunPhase.WaitingRetainerSell:
                 {
+                    if (!_processingListedItem && _newListingAttemptState == NewListingAttemptState.PendingConfirm
+                        && !retainerSellVisible
+                        && _attemptedSellStartedUtc != DateTime.MinValue
+                        && (now - _attemptedSellStartedUtc).TotalSeconds >= NewListingRetainerSellTimeoutSeconds)
+                    {
+                        HandleNewListingRetainerSellTimeout(now);
+                        return;
+                    }
+
                     if (contextMenuVisible)
                     {
                         if (_awaitingRetainerContextMenu)
@@ -1641,6 +1651,43 @@ public unsafe sealed partial class Plugin
             default:
                 return;
         }
+    }
+
+    private void HandleNewListingRetainerSellTimeout(DateTime now)
+    {
+        var itemId = _attemptedSellItemId;
+        var isHq = _attemptedSellItemIsHq;
+        var slot = _attemptedSellSlot;
+
+        Log.Warning(
+            "[RR][Sell] RetainerSell did not open within {TimeoutSeconds:0.#} seconds; skipping itemId={ItemId} hq={IsHq} retainer={Retainer} container={Container} slot={Slot}.",
+            NewListingRetainerSellTimeoutSeconds,
+            itemId,
+            isHq,
+            DescribeCurrentRetainerForLog(),
+            slot.Container,
+            slot.Slot);
+
+        RememberFailedAttemptedSlot();
+        _newListingAttemptState = NewListingAttemptState.Failed;
+        _processingListedItem = true;
+        _hasPendingSellSlot = false;
+        _pendingSellSlot = default;
+        _currentSellItemId = 0;
+        _currentSellItemIsHq = false;
+        _currentSellStackSize = 0;
+        ResetNewListingAttempt();
+
+        if (_quickListRun)
+        {
+            Log.Information("[RR][QuickList] Completed success=False after RetainerSell timeout.");
+            StopRun();
+            _lastActionUtc = now;
+            return;
+        }
+
+        _runPhase = RunPhase.Sell_FindNextItemInInventory;
+        _lastActionUtc = now;
     }
 
     private void ArmRetainerContextMenuExpectation(DateTime now)
