@@ -4,6 +4,7 @@ using System.Linq;
 using Dalamud.Game.Text.SeStringHandling.Payloads;
 using Dalamud.Utility;
 using ECommons;
+using ECommons.Automation.NeoTaskManager;
 using ECommons.DalamudServices;
 using ECommons.UIHelpers.AtkReaderImplementations;
 using FFXIVClientStructs.FFXIV.Client.UI;
@@ -17,24 +18,33 @@ namespace Parnell.Scheduler
 {
     public unsafe class RetainerMarketboardHandler
     {
-        private static bool SkipCurrentItem;
+        private bool skipCurrentItem;
+        
+        private readonly TaskManager taskManager;
+        private readonly PriceService priceService;
 
-        public static void EnqueueRetainerSteps()
+        public RetainerMarketboardHandler(TaskManager taskManager, PriceService priceService)
         {
-            Parnell.TaskManager.Enqueue(ClickSellItems);
-            Parnell.TaskManager.Enqueue(ProcessAllRetainerItems);
-            Parnell.TaskManager.EnqueueDelay(500);
-            Parnell.TaskManager.Enqueue(CloseRetainerSellList);
-            Parnell.TaskManager.EnqueueDelay(100);
-            Parnell.TaskManager.Enqueue(Close);
+            this.taskManager = taskManager;
+            this.priceService = priceService;
         }
 
-        private static void ClearState()
+        public void EnqueueRetainerSteps()
         {
-            SkipCurrentItem = false;
+            taskManager.Enqueue(ClickSellItems);
+            taskManager.Enqueue(ProcessAllRetainerItems);
+            taskManager.EnqueueDelay(500);
+            taskManager.Enqueue(CloseRetainerSellList);
+            taskManager.EnqueueDelay(100);
+            taskManager.Enqueue(Close);
         }
 
-        private static unsafe bool? ProcessAllRetainerItems()
+        private void ClearState()
+        {
+            skipCurrentItem = false;
+        }
+
+        private unsafe bool? ProcessAllRetainerItems()
         {
             ClearState();
 
@@ -53,12 +63,12 @@ namespace Parnell.Scheduler
                 for (var i = length - 1; i >= 0; i--)
                 {
                     var index = i;
-                    Parnell.TaskManager.Insert(SetNewPrice);
-                    Parnell.TaskManager.InsertDelay(200);
-                    Parnell.TaskManager.Insert(ComparePriceIfNeeded);
-                    Parnell.TaskManager.Insert(ClickAdjustPrice);
-                    Parnell.TaskManager.InsertDelay(200);
-                    Parnell.TaskManager.Insert(() => OpenItemContextMenu(index));
+                    taskManager.Insert(SetNewPrice);
+                    taskManager.InsertDelay(200);
+                    taskManager.Insert(ComparePriceIfNeeded);
+                    taskManager.Insert(ClickAdjustPrice);
+                    taskManager.InsertDelay(200);
+                    taskManager.Insert(() => OpenItemContextMenu(index));
                 }
 
                 return true;
@@ -67,9 +77,9 @@ namespace Parnell.Scheduler
             return false;
         }
 
-        private static bool? ComparePriceIfNeeded()
+        private bool? ComparePriceIfNeeded()
         {
-            if (SkipCurrentItem)
+            if (skipCurrentItem)
                 return true;
 
             if (GenericHelpers.TryGetAddonByName<AddonRetainerSell>("RetainerSell", out var addon) && GenericHelpers.IsAddonReady(&addon->AtkUnitBase))
@@ -78,16 +88,16 @@ namespace Parnell.Scheduler
                 var nameText = itemName.StringPtr.AsDalamudSeString();
                 var cleanedName = Utils.SanitiseDalamudString(nameText);
                 var itemData = Svc.Data.GetExcelSheet<Item>().FirstOrDefault(x => x.Name == cleanedName);
-                if (Parnell.PriceService.HasDataOnItem(itemData.RowId))
+                if (priceService.HasDataOnItem(itemData.RowId))
                 {
                     Svc.Log.Debug($"{cleanedName}: using cached price. Skipping price comparison.");
-                    Parnell.TaskManager.InsertDelay(500);
+                    taskManager.InsertDelay(500);
                 }
                 else
                 {
                     Svc.Log.Debug($"No cached price for {cleanedName}. Clicking compare prices.");
                     ECommons.Automation.Callback.Fire(&addon->AtkUnitBase, true, 4);
-                    Parnell.TaskManager.InsertDelay(3000);
+                    taskManager.InsertDelay(3000);
                 }
 
                 return true;
@@ -96,7 +106,7 @@ namespace Parnell.Scheduler
             return false;
         }
         
-        private static bool? OpenItemContextMenu(int index)
+        private bool? OpenItemContextMenu(int index)
         {
             if (GenericHelpers.TryGetAddonByName<AtkUnitBase>("RetainerSellList", out var addon) && GenericHelpers.IsAddonReady(addon))
             {
@@ -106,14 +116,14 @@ namespace Parnell.Scheduler
             return false;
         }
 
-        private static bool? ClickAdjustPrice()
+        private bool? ClickAdjustPrice()
         {
             if (GenericHelpers.TryGetAddonByName<AtkUnitBase>("ContextMenu", out var addon) && GenericHelpers.IsAddonReady(addon))
             {
                 var reader = new ReaderContextMenu(addon);
                 if (IsItemMannequin(reader.Entries))
                 {
-                    SkipCurrentItem = true;
+                    skipCurrentItem = true;
                     addon->Close(true);
                 }
                 else
@@ -133,11 +143,11 @@ namespace Parnell.Scheduler
                                         e.Name.Equals("価格を変更する", StringComparison.CurrentCultureIgnoreCase) || 
                                         e.Name.Equals("changer le prix", StringComparison.CurrentCultureIgnoreCase));
 
-        private static bool? SetNewPrice()
+        private bool? SetNewPrice()
         {
             try
             {
-                if (SkipCurrentItem) return true;
+                if (skipCurrentItem) return true;
 
                 if (GenericHelpers.TryGetAddonByName<AtkUnitBase>("ItemSearchResult", out var itemSearchResult))
                 {
@@ -153,7 +163,7 @@ namespace Parnell.Scheduler
                     var sanitised = Utils.SanitiseDalamudString(nameText);
                     var itemData = Svc.Data.GetExcelSheet<Item>().FirstOrDefault(x => x.Name == sanitised);
 
-                    var newPrice = Parnell.PriceService.GetAppropriatePriceForItem(itemData.RowId, isHq);
+                    var newPrice = priceService.GetAppropriatePriceForItem(itemData.RowId, isHq);
                     var currentPrice = retainerSell->AskingPrice->Value;
                     if (newPrice > 0 && currentPrice != newPrice)
                     {
@@ -165,7 +175,7 @@ namespace Parnell.Scheduler
                         ECommons.Automation.Callback.Fire(&retainerSell->AtkUnitBase, true, 1);
                     }
                     retainerSell->AtkUnitBase.Close(true);
-                    Parnell.TaskManager.InsertDelay(500);
+                    taskManager.InsertDelay(500);
 
                     return true;
                 }
@@ -173,17 +183,17 @@ namespace Parnell.Scheduler
             }
             finally
             {
-                SkipCurrentItem = false;
+                skipCurrentItem = false;
             }
         }
 
-        public static bool? ClickSellItems()
+        public bool? ClickSellItems()
         {
             var retainerListingsText = Svc.Data.GetExcelSheet<Addon>().GetRow(2380).Text.ToString();
             return AddonHelpers.SelectString.TrySelectSpecificEntry(retainerListingsText);
         }
 
-        public static bool? CloseRetainerSellList()
+        public bool? CloseRetainerSellList()
         {
             if (GenericHelpers.TryGetAddonByName<AtkUnitBase>("RetainerSellList", out var addon) && GenericHelpers.IsAddonReady(addon))
             {
@@ -193,7 +203,7 @@ namespace Parnell.Scheduler
             return false;
         }
 
-        public static bool? Close()
+        public bool? Close()
         {
             if (GenericHelpers.TryGetAddonByName<AtkUnitBase>("SelectString", out var addon) && GenericHelpers.IsAddonReady(addon))
             {

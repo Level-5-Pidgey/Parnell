@@ -4,16 +4,23 @@ using System.Linq;
 using Dalamud.Game.Addon.Lifecycle;
 using Dalamud.Game.Addon.Lifecycle.AddonArgTypes;
 using Dalamud.Game.Network.Structures;
+using Dalamud.Plugin.Services;
 using FFXIVClientStructs.FFXIV.Client.Game;
+using Parnell.Services;
 
 namespace Parnell.Handlers;
 
 public class MarketboardHandler : IDisposable
 {
-    public MarketboardHandler()
+    private readonly PriceService priceService;
+    private readonly IMarketBoard marketBoard;
+
+    public MarketboardHandler(PriceService priceService, IMarketBoard marketBoard)
     {
-        Parnell.MarketBoard.OfferingsReceived += MarketboardOfferingsReceived;
-        Parnell.MarketBoard.HistoryReceived += MarketboardHistoryReceived;
+        this.priceService = priceService;
+        this.marketBoard = marketBoard;
+        this.marketBoard.OfferingsReceived += MarketboardOfferingsReceived;
+        this.marketBoard.HistoryReceived += MarketboardHistoryReceived;
     }
 
     private unsafe bool IsOwnRetainer(ulong retainerId)
@@ -33,8 +40,8 @@ public class MarketboardHandler : IDisposable
     
     public void Dispose()
     {
-        Parnell.MarketBoard.OfferingsReceived -= MarketboardOfferingsReceived;
-        Parnell.MarketBoard.HistoryReceived -= MarketboardHistoryReceived;
+        marketBoard.OfferingsReceived -= MarketboardOfferingsReceived;
+        marketBoard.HistoryReceived -= MarketboardHistoryReceived;
         GC.SuppressFinalize(this);
     }
 
@@ -46,7 +53,7 @@ public class MarketboardHandler : IDisposable
             return;
         }
 
-        Parnell.PriceService.UpdateHistory(history.ItemId, listings);
+        priceService.UpdateHistory(history.ItemId, listings);
     }
 
     private void MarketboardOfferingsReceived(IMarketBoardCurrentOfferings currentOfferings)
@@ -63,7 +70,7 @@ public class MarketboardHandler : IDisposable
             return;
         }
 
-        Parnell.PriceService.UpdateOfferings(itemId.Value, listings
+        priceService.UpdateOfferings(itemId.Value, listings
                                                            .Where(x => !IsOwnRetainer(x.RetainerId))
                                                            .ToArray()
         );

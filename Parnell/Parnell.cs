@@ -38,12 +38,17 @@ public sealed class Parnell : IDalamudPlugin
 
     private const string CommandName = "/updatelistings";
     public Configuration Configuration { get; init; }
-    public static TaskManager TaskManager { get; private set; } = null!;
-    public static PriceService PriceService { get; private set; } = null!;
+    
+    private readonly TaskManager taskManager;
+    private readonly PriceService priceService;
+    private readonly MainScheduler mainScheduler;
+    private readonly RetainerListHandlers retainerListHandlers;
+    private readonly RetainerMarketboardHandler retainerMarketboardHandler;
+    private readonly InteractWithBell interactWithBell;
+    private readonly SkipChatter skipChatter;
 
-    public MarketboardHandler MarketboardHandler { get; private set; } = null!;
-
-    public AutoRetainerHandler AutoRetainerHandler { get; private set; } = null!;
+    public MarketboardHandler MarketboardHandler { get; private set; }
+    public AutoRetainerHandler AutoRetainerHandler { get; private set; }
 
     public Parnell(IDalamudPluginInterface pi)
     {
@@ -52,8 +57,23 @@ public sealed class Parnell : IDalamudPlugin
 
         ECommonsMain.Init(pi, this, Module.DalamudReflector);
         
-        PriceService = new PriceService();
-        _ = new TickScheduler(Init);
+        var debug = false;
+        #if DEBUG
+        debug = true;
+        #endif
+        
+        taskManager = new TaskManager(new TaskManagerConfiguration(abortOnTimeout: true, showError: true, showDebug: debug));
+        priceService = new PriceService();
+        retainerListHandlers = new RetainerListHandlers();
+        retainerMarketboardHandler = new RetainerMarketboardHandler(taskManager, priceService);
+        interactWithBell = new InteractWithBell(taskManager);
+        mainScheduler = new MainScheduler(taskManager, priceService, retainerListHandlers, retainerMarketboardHandler, interactWithBell);
+        skipChatter = new SkipChatter(taskManager, mainScheduler);
+        
+        MarketboardHandler = new MarketboardHandler(priceService, MarketBoard);
+        AutoRetainerHandler = new AutoRetainerHandler(mainScheduler);
+        
+        Framework.Update += Tick;
 
         CommandManager.AddHandler(CommandName, new CommandInfo(MarketUpdateCommand)
         {
@@ -61,45 +81,33 @@ public sealed class Parnell : IDalamudPlugin
         });
     }
 
-    private void Init()
+    private void Tick(IFramework framework)
     {
-        var debug = false;
-        #if DEBUG
-        debug = true;
-        #endif
-        TaskManager = new TaskManager(new TaskManagerConfiguration(abortOnTimeout: true, showError: true, showDebug: debug));
-        MarketboardHandler = new MarketboardHandler();
-        AutoRetainerHandler = new AutoRetainerHandler();
-        Framework.Update += Tick;
-    }
-
-    private static void Tick(IFramework framework)
-    {
-        SkipChatter.Tick();
-        if (MainScheduler.Enabled && Svc.Objects.LocalPlayer != null)
+        skipChatter.Tick();
+        if (mainScheduler.Enabled && Svc.Objects.LocalPlayer != null)
         {
-            MainScheduler.Tick();
+            mainScheduler.Tick();
         }
     }
 
     public void Dispose()
     {
         CommandManager.RemoveHandler(CommandName);
-        TaskManager.Dispose();
+        taskManager.Dispose();
         ECommonsMain.Dispose();
         Framework.Update -= Tick;
     }
 
     private unsafe void MarketUpdateCommand(string command, string args)
     {
-        MainScheduler.Enabled = !MainScheduler.Enabled;
-        if (!MainScheduler.Enabled)
+        mainScheduler.Enabled = !mainScheduler.Enabled;
+        if (!mainScheduler.Enabled)
         {
-            TaskManager.Abort();
+            taskManager.Abort();
         }
         else
         {
-            if (RetainerListHandlers.Retainers.Count > 0)
+            if (mainScheduler.Retainers.Count > 0)
             {
                 return;
             }
@@ -119,10 +127,10 @@ public sealed class Parnell : IDalamudPlugin
                     continue;
                 }
 
-                RetainerListHandlers.Retainers.Add(new Retainer(gameRetainer));
+                mainScheduler.Retainers.Add(new Retainer(gameRetainer));
             }
         }
 
-        Svc.Log.Info($"Toggled operations, enabled = {MainScheduler.Enabled}.");
+        Svc.Log.Info($"Toggled operations, enabled = {mainScheduler.Enabled}.");
     }
 }

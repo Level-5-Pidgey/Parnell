@@ -9,11 +9,11 @@ using FFXIVClientStructs.FFXIV.Component.GUI;
 
 namespace Parnell.Scheduler;
 
-public static unsafe class RetainerListHandlers
+public unsafe class RetainerListHandlers
 {
     
-    public static List<Retainer> Retainers { get; set; } = [];
-    public static bool? SelectRetainer(string name)
+
+    public bool? SelectRetainer(string name)
     {
         if (string.IsNullOrEmpty(name))
         {
@@ -40,18 +40,6 @@ public static unsafe class RetainerListHandlers
 
     }
 
-    public static bool? MarkRetainerAsDone(string name)
-    {
-        var target = Retainers.FirstOrDefault(x => x.Name == name);
-        if (target is null)
-        {
-            Svc.Log.Error($"Couldn't find retainer: {name}");
-            return false;
-        }
-
-        Retainers.Remove(target);
-        return true;
-    }
 }
 
 public class Retainer(RetainerManager.Retainer retainer)

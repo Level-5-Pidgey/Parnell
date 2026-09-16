@@ -2,6 +2,7 @@
 using System.Numerics;
 using Dalamud.Game.ClientState.Objects.Types;
 using ECommons;
+using ECommons.Automation.NeoTaskManager;
 using ECommons.DalamudServices;
 using ECommons.DalamudServices.Legacy;
 using ECommons.ExcelServices.TerritoryEnumeration;
@@ -13,23 +14,30 @@ using ObjectKind = Dalamud.Game.ClientState.Objects.Enums.ObjectKind;
 
 namespace Parnell.Scheduler;
 
-public static class InteractWithBell
+public class InteractWithBell
 {
-    public static void Enqueue(bool interact = true)
+    private readonly TaskManager taskManager;
+
+    public InteractWithBell(TaskManager taskManager)
+    {
+        this.taskManager = taskManager;
+    }
+    
+    public void Enqueue(bool interact = true)
     {
         Enqueue(null, interact);
     }
 
-    public static unsafe void Enqueue(Action? callback, bool interact = true)
+    public unsafe void Enqueue(Action? callback, bool interact = true)
     {
-        Parnell.TaskManager.Enqueue(TargetReachableRetainerBell);
+        taskManager.Enqueue(TargetReachableRetainerBell);
 
         if (!interact)
         {
             return;
         }
         
-        Parnell.TaskManager.Enqueue(() =>
+        taskManager.Enqueue(() =>
         {
             var targetedBell = Svc.Targets.Target;
             if (targetedBell is null)
@@ -49,15 +57,15 @@ public static class InteractWithBell
 
         if (callback != null)
         {
-            Parnell.TaskManager.EnqueueDelay(100);
-            Parnell.TaskManager.Enqueue(callback);
+            taskManager.EnqueueDelay(100);
+            taskManager.Enqueue(callback.Invoke);
         }
     }
 
-    private static bool TargetReachableRetainerBell()
+    private bool TargetReachableRetainerBell()
     {
         var bell = Svc.Objects.GetNearestGameObject(x =>
-                                                        x.ObjectKind is ObjectKind.Housing or ObjectKind.EventObj &&
+                                                        x.ObjectKind is ObjectKind.HousingEventObject or ObjectKind.EventObj &&
                                                         x.Name.ToString().EqualsIgnoreCaseAny(Lang.BellName));
         if (bell is null)
         {

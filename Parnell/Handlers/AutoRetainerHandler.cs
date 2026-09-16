@@ -8,9 +8,11 @@ namespace Parnell.Handlers;
 public class AutoRetainerHandler : IDisposable
 {
     private readonly AutoRetainerApi autoRetainerApi = new();
-    
-    public AutoRetainerHandler()
+    private readonly MainScheduler mainScheduler;
+
+    public AutoRetainerHandler(MainScheduler mainScheduler)
     {
+        this.mainScheduler = mainScheduler;
         autoRetainerApi.OnRetainerPostprocessStep += OnRetainerPostProcessStep;
     }
 
@@ -24,7 +26,7 @@ public class AutoRetainerHandler : IDisposable
         }
 
         Svc.Log.Info($"Received post-process step for {retainerName} from AutoRetainer.");
-        MainScheduler.EnqueueSingleRetainer(retainerName, () => autoRetainerApi.FinishCharacterPostProcess());
+        mainScheduler.EnqueueSingleRetainer(retainerName, () => autoRetainerApi.FinishCharacterPostProcess());
     }
     
     public void Dispose()
