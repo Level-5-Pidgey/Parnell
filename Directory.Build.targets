@@ -1,0 +1,17 @@
+<Project>
+  <!-- Keep dependency overrides and lock files in this repo, without editing submodules. -->
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'ECommons' Or '$(MSBuildProjectName)' == 'AutoRetainerAPI'">
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <NuGetLockFilePath>$(MSBuildThisFileDirectory)build/locks/$(MSBuildProjectName).packages.lock.json</NuGetLockFilePath>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'ECommons'">
+    <PackageReference Update="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="5.6.0" />
+  </ItemGroup>
+
+  <!-- Both the plugin and AutoRetainerAPI must use the same ECommons assembly. -->
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'AutoRetainerAPI'">
+    <PackageReference Remove="ECommons" />
+    <ProjectReference Include="$(MSBuildThisFileDirectory)external/ECommons/ECommons/ECommons.csproj" />
+  </ItemGroup>
+</Project>

@@ -29,8 +29,11 @@ jobs:
           Invoke-WebRequest -Uri https://goatcorp.github.io/dalamud-distrib/latest.zip -OutFile dalamud-latest.zip
           Expand-Archive -Force dalamud-latest.zip "$env:AppData\XIVLauncher\addon\Hooks\dev"
 
+      - name: Restore dependencies
+        run: dotnet restore RetainerRepricer.sln --locked-mode
+
       - name: Build plugin
-        run: dotnet build RetainerRepricer/RetainerRepricer.csproj --configuration Release --arch x64
+        run: dotnet build RetainerRepricer.sln --configuration Release -p:Platform=x64 --no-restore
 
       - name: Package plugin
         shell: pwsh
