@@ -1,0 +1,15 @@
+{
+  "Name": "Retainer Repricer",
+  "Author": "baanderson40",
+  "Punchline": "Retainer market repricing.",
+  "Description": "Automates retainer item listing and repricing by cycling through retainers, reading market prices, and updating listings safely. Includes inventory context menu integration for adding items to an auto-sell list.",
+  "ApplicableVersion": "any",
+  "RepoUrl": "https://github.com/baanderson40/Retainer-Repricer",
+  "Tags": [
+    "market",
+    "retainer",
+    "economy"
+  ],
+  "AcceptsFeedback": true,
+  "FeedbackMessage": "Please report issues or suggestions via GitHub."
+}

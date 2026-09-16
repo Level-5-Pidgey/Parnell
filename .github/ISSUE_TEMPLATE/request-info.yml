@@ -1,0 +1,167 @@
+name: Report a plugin issue
+description: Collect detailed Retainer Repricer bug reports and troubleshooting info
+title: "[Info Needed]: "
+labels: ["needs more information"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting an issue with Retainer Repricer.
+
+        Please fill out the fields below as completely as possible. The most helpful reports include exact reproduction steps and logs from the in-game log viewer (`/repricer logs`).
+
+  - type: dropdown
+    id: issue_type
+    attributes:
+      label: Issue type
+      description: What kind of problem are you reporting?
+      options:
+        - Bug
+        - Regression
+        - UI / config issue
+        - Retainer navigation issue
+        - Repricing issue
+        - Sell-list / listing issue
+        - Universalis / pricing data issue
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: plugin_version
+    attributes:
+      label: Plugin version
+      description: What Retainer Repricer version are you using?
+      placeholder: "Example: 1.2.0"
+    validations:
+      required: true
+
+  - type: input
+    id: dalamud_environment
+    attributes:
+      label: Dalamud / launcher environment
+      description: Include Dalamud API version, launcher version, testing/stable channel, or other relevant environment details.
+      placeholder: "Example: Dalamud API 15, XIVLauncher stable"
+    validations:
+      required: false
+
+  - type: input
+    id: world_dc
+    attributes:
+      label: World / Data Center
+      description: Which world and data center were you on when the issue happened?
+      placeholder: "Example: Carbuncle / Elemental"
+    validations:
+      required: false
+
+  - type: input
+    id: game_language
+    attributes:
+      label: Game language
+      description: Which FFXIV client language are you using?
+      placeholder: "Example: English"
+    validations:
+      required: false
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: Briefly describe the issue.
+      placeholder: "What went wrong?"
+    validations:
+      required: true
+
+  - type: textarea
+    id: workflow
+    attributes:
+      label: Feature or workflow affected
+      description: Which command, mode, retainer action, or config area is involved?
+      placeholder: |
+        Examples:
+        - /rr start sell
+        - /rr start price
+        - MB Sell List tab
+        - Per-retainer sell limits
+        - Smart sort
+        - Auto-prune
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What did you expect Retainer Repricer to do?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: What happened instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: List the exact steps needed to reproduce the issue.
+      placeholder: |
+        1. Open retainer bell
+        2. Run /rr start sell
+        3. Select retainer X
+        4. Observe incorrect behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: item_retainer_details
+    attributes:
+      label: Retainer / item / config details
+      description: Include retainer name, item name(s), HQ/NQ, sell limits, stack sizes, or other relevant settings.
+      placeholder: |
+        Examples:
+        - Retainer: MarketMule
+        - Item: Grade 8 Dark Matter
+        - HQ: No
+        - Per-retainer sell limit: 5
+        - Stack size override: 99
+    validations:
+      required: false
+
+  - type: markdown
+    attributes:
+      value: |
+        ### How to collect Retainer Repricer logs
+
+        Please attach logs if possible:
+        1. During or after reproducing the issue, open `/repricer logs` or click **Open Logs** in plugin settings
+        2. Click **Copy Visible** in the log window and paste below
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Retainer Repricer logs
+      description: Paste logs using **Copy Visible** from `/repricer logs`.
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots or video
+      description: Add screenshots or recordings if they help explain the problem.
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional_context
+    attributes:
+      label: Additional context
+      description: Anything else that may help diagnose the issue.
+    validations:
+      required: false
