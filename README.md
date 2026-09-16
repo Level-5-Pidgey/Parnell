@@ -36,15 +36,15 @@ Install a stable .NET 10 SDK and run XIVLauncher with Dalamud at least once so i
 
 ```powershell
 git submodule update --init --recursive
-dotnet restore RetainerRepricer.sln --locked-mode
-dotnet build RetainerRepricer.sln --configuration Release -p:Platform=x64 --no-restore
+dotnet restore Parnell.sln --locked-mode
+dotnet build Parnell.sln --configuration Release -p:Platform=x64 --no-restore
 ```
 
-Open `RetainerRepricer.sln` in your IDE. The plugin is built to `RetainerRepricer/bin/x64/Release/RetainerRepricer.dll`; add that DLL to Dalamud's Dev Plugin Locations to test it in game.
+Open `Parnell.sln` in your IDE. The plugin is built to `RetainerRepricer/bin/x64/Release/RetainerRepricer.dll`; add that DLL to Dalamud's Dev Plugin Locations to test it in game.
 
 For a custom Dalamud installation, pass `-p:DalamudLibPath="C:\path\to\Dalamud/"` to both restore and build so every project uses the same assemblies.
 
-Both dependencies are pinned Git submodules. Repository-level overrides in `Directory.Build.targets` make AutoRetainerAPI use the same ECommons project as the plugin, update the analyzer package, and store dependency lock files under `build/locks`. After intentionally updating dependencies, run `dotnet restore RetainerRepricer.sln --force-evaluate` and commit the updated submodule pointers and lock files.
+Both dependencies are pinned Git submodules. Repository-level overrides in `Directory.Build.targets` make AutoRetainerAPI use the same ECommons project as the plugin, update the analyzer package, and store dependency lock files under `build/locks`. After intentionally updating dependencies, run `dotnet restore Parnell.sln --force-evaluate` and commit the updated submodule pointers and lock files.
 
 ---
 

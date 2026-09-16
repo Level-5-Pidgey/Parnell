@@ -30,10 +30,10 @@ jobs:
           Expand-Archive -Force dalamud-latest.zip "$env:AppData\XIVLauncher\addon\Hooks\dev"
 
       - name: Restore dependencies
-        run: dotnet restore RetainerRepricer.sln --locked-mode
+        run: dotnet restore Parnell.sln --locked-mode
 
       - name: Build plugin
-        run: dotnet build RetainerRepricer.sln --configuration Release -p:Platform=x64 --no-restore
+        run: dotnet build Parnell.sln --configuration Release -p:Platform=x64 --no-restore
 
       - name: Package plugin
         shell: pwsh
