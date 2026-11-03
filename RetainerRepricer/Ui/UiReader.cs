@@ -11,6 +11,7 @@ using ECommons.DalamudServices;
 
 using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.UI;
+using FFXIVClientStructs.FFXIV.Client.UI.Agent;
 using FFXIVClientStructs.FFXIV.Component.GUI;
 
 using Lumina.Excel.Sheets;
@@ -58,6 +59,7 @@ internal sealed unsafe class UiReader
     public enum ItemSearchResultStatus
     {
         None,
+        Loading,
         NoItemsFound,
         PleaseWaitRetry,
         OtherMessage,
@@ -337,20 +339,31 @@ internal sealed unsafe class UiReader
     }
 
     /// <summary>
-    /// Normalizes the ItemSearchResult status string and classifies it into one of the well-known outcomes.
+    /// Uses the market request state for loading and localized UI messages for terminal outcomes.
     /// </summary>
     public ItemSearchResultStatus GetItemSearchResultStatus(out string message)
     {
         message = GetItemSearchResultErrorMessage();
+        var statuses = ItemSearchResultStatusStringsLoader.Value;
+
+        // Keep an explicit throttle on the existing backoff/retry path even if
+        // the request's pending flag has not cleared yet.
+        if (statuses.PleaseWait.Contains(message))
+            return ItemSearchResultStatus.PleaseWaitRetry;
+
+        var itemSearch = AgentItemSearch.Instance();
+        var search = itemSearch != null ? itemSearch->InfoProxyItemSearch : null;
+
+        // UI text and rows can lag the request. Use the native state rather than
+        // matching the localized "Please wait..." message or trusting old rows.
+        if (search != null && search->WaitingForListings)
+            return ItemSearchResultStatus.Loading;
+
         if (string.IsNullOrWhiteSpace(message))
             return ItemSearchResultStatus.None;
 
-        var statuses = ItemSearchResultStatusStringsLoader.Value;
         if (statuses.NoItems.Contains(message))
             return ItemSearchResultStatus.NoItemsFound;
-
-        if (statuses.PleaseWait.Contains(message))
-            return ItemSearchResultStatus.PleaseWaitRetry;
 
         return ItemSearchResultStatus.OtherMessage;
     }

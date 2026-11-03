@@ -633,6 +633,14 @@ public unsafe sealed partial class Plugin
                     if (_isrOpenedUtc == DateTime.MinValue)
                         _isrOpenedUtc = now;
 
+                    if (status == Ui.UiReader.ItemSearchResultStatus.Loading)
+                    {
+                        _isrNoItemsConfirm = 0;
+                        Log.Verbose("[RR] ISR search still loading; waiting for this item's results.");
+                        _lastActionUtc = now;
+                        return;
+                    }
+
                     if (status == Ui.UiReader.ItemSearchResultStatus.NoItemsFound)
                     {
                         var age = (now - _isrOpenedUtc).TotalSeconds;
@@ -796,6 +804,15 @@ public unsafe sealed partial class Plugin
                     var status = _uiReader.GetItemSearchResultStatus(out var msg);
                     if (_isrOpenedUtc == DateTime.MinValue)
                         _isrOpenedUtc = now;
+
+                    if (status == Ui.UiReader.ItemSearchResultStatus.Loading)
+                    {
+                        _isrNoItemsConfirm = 0;
+                        Log.Verbose("[RR] ISR search resumed loading; returning to the results gate.");
+                        _runPhase = RunPhase.WaitingItemSearchResult;
+                        _lastActionUtc = now;
+                        return;
+                    }
 
                     if (status == Ui.UiReader.ItemSearchResultStatus.NoItemsFound)
                     {
