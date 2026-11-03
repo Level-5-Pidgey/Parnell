@@ -333,39 +333,64 @@ internal sealed unsafe class UiReader
 
     public string GetItemSearchResultErrorMessage()
     {
-        // Message is empty/null when there's no error/status.
-        var raw = ReadAddonTextNode("ItemSearchResult", NodePaths.ItemSearchResult_ErrorMessageNodeId);
-        return NormalizeStatusText(raw);
+        var unit = GetVisibleUnitBase("ItemSearchResult", 1);
+        if (unit == null) return string.Empty;
+
+        var node = FindNodeById(&unit->UldManager, NodePaths.ItemSearchResult_ErrorMessageNodeId);
+        // Hidden status nodes can retain a previous search's message.
+        return node != null && node->IsVisible()
+            ? NormalizeStatusText(ReadTextNode(node))
+            : string.Empty;
     }
 
     /// <summary>
-    /// Uses the market request state for loading and localized UI messages for terminal outcomes.
+    /// Uses visible search results and localized messages before falling back to the request state.
     /// </summary>
     public ItemSearchResultStatus GetItemSearchResultStatus(out string message)
     {
         message = GetItemSearchResultErrorMessage();
         var statuses = ItemSearchResultStatusStringsLoader.Value;
 
-        // Keep an explicit throttle on the existing backoff/retry path even if
-        // the request's pending flag has not cleared yet.
         if (statuses.PleaseWait.Contains(message))
             return ItemSearchResultStatus.PleaseWaitRetry;
+
+        if (statuses.NoItems.Contains(message))
+            return ItemSearchResultStatus.NoItemsFound;
 
         var itemSearch = AgentItemSearch.Instance();
         var search = itemSearch != null ? itemSearch->InfoProxyItemSearch : null;
 
-        // UI text and rows can lag the request. Use the native state rather than
-        // matching the localized "Please wait..." message or trusting old rows.
-        if (search != null && search->WaitingForListings)
+        // WaitingForListings can remain set after results arrive. Only current,
+        // rendered listings can override it so stale rows cannot release the gate.
+        var hasCurrentListings = search != null &&
+            itemSearch->ResultItemId != 0 &&
+            search->SearchItemId == itemSearch->ResultItemId &&
+            search->ListingCount > 0 &&
+            search->Listings[0].ItemId == itemSearch->ResultItemId &&
+            HasVisibleMarketPrice();
+
+        if (search != null && search->WaitingForListings && !hasCurrentListings)
             return ItemSearchResultStatus.Loading;
 
         if (string.IsNullOrWhiteSpace(message))
             return ItemSearchResultStatus.None;
 
-        if (statuses.NoItems.Contains(message))
-            return ItemSearchResultStatus.NoItemsFound;
-
         return ItemSearchResultStatus.OtherMessage;
+    }
+
+    private bool HasVisibleMarketPrice()
+    {
+        var unit = GetVisibleUnitBase("ItemSearchResult", 1);
+        if (unit == null) return false;
+
+        var node = FindNodeById(&unit->UldManager, NodePaths.ItemSearchResult_ListNodeId);
+        if (node == null || !node->IsVisible()) return false;
+
+        var list = GetMarketList();
+        if (list == null || list->GetItemCount() <= 0) return false;
+
+        var renderer = list->GetItemRenderer(0);
+        return renderer != null && ParseGil(ReadRendererText(renderer, NodePaths.UnitPriceNodeId)) is > 0;
     }
 
     private static string NormalizeStatusText(string? raw)
