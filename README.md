@@ -58,12 +58,14 @@ The items you want the plugin to list or reprice live here.
 - When Smart Sort is active, priority numbers are just for reference—the plugin reorders them automatically.
 - The Smart Sort button reorder your list based on how fast items sell and their average price. If it's disabled, check that Universalis is enabled in Settings.
 - With per-retainer caps enabled in Settings, each Sell List item can have different listing limits per retainer, and you can set how many of an item to list in a single transaction. Only retainers with both Enable and Sell checked in the Retainers tab appear in these settings.
+- Use the **All selling retainers** row in an expanded item to set a sell limit or stack size across all selling-enabled retainers. Each **Set all** button applies only its own value to that item.
 
 ---
 
 ## Retainers
 
-- Shows every retainer currently visible in your Retainer List.
+- Groups retainers by character and home world with compact character rows, both here and in each item's per-retainer Sell List settings.
+- Character ownership is captured when you open a character's Retainer List, or read from AutoRetainer when available. Unidentified retainers appear under **Unknown character**.
 - Each retainer has three checkboxes:
   - **Enabled** – Whether the plugin touches this retainer at all.
   - **Allow reprice** – Whether to reprice existing listings.

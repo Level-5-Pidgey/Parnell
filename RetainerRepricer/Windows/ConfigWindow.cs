@@ -38,6 +38,8 @@ public sealed class ConfigWindow : Window, IDisposable
     private bool _forceCollapseSellListRows;
     private bool _perRetainerCapsLastEnabled;
     private ConfigTabFocus? _pendingTabFocus;
+    private DateTime _lastRetainerCharacterSyncUtc;
+    private readonly System.Collections.Generic.Dictionary<ulong, (int SellLimit, int StackSize)> _bulkRetainerEdits = new();
 
     private enum ConfigTabFocus
     {
@@ -90,6 +92,13 @@ public sealed class ConfigWindow : Window, IDisposable
 
     public override void Draw()
     {
+        var now = DateTime.UtcNow;
+        if ((now - _lastRetainerCharacterSyncUtc).TotalSeconds >= 5)
+        {
+            _lastRetainerCharacterSyncUtc = now;
+            _plugin.SyncRetainerCharacters();
+        }
+
         if (_perRetainerCapsLastEnabled != _config.EnablePerRetainerCaps)
         {
             if (_config.EnablePerRetainerCaps)
@@ -571,97 +580,174 @@ public sealed class ConfigWindow : Window, IDisposable
             return;
         }
 
+        DrawRetainerCapTable(entry, retainerNames);
+
+        ImGui.Unindent();
+        ImGui.PopID();
+    }
+
+    private void DrawRetainerCapTable(Configuration.SellListEntry entry, System.Collections.Generic.IReadOnlyList<string> retainerNames)
+    {
         var stackCap = _plugin.GetStackSizeCap(entry.ItemId);
 
         if (ImGui.BeginTable("##retainer_caps_table", 3, ImGuiTableFlags.RowBg | ImGuiTableFlags.BordersInnerH | ImGuiTableFlags.SizingStretchSame))
         {
-            ImGui.TableSetupColumn("Retainer", ImGuiTableColumnFlags.WidthStretch);
+            ImGui.TableSetupColumn("##retainer", ImGuiTableColumnFlags.WidthStretch);
             ImGui.TableSetupColumn("Sell limit", ImGuiTableColumnFlags.WidthFixed, 75f);
             ImGui.TableSetupColumn("Stack size", ImGuiTableColumnFlags.WidthFixed, 75f);
             ImGui.TableNextRow(ImGuiTableRowFlags.Headers);
-            ImGui.TableSetColumnIndex(0);
-            ImGui.TextUnformatted("Retainer");
             ImGui.TableSetColumnIndex(1);
             DrawHeaderLabel("Sell limit", center: true);
             ImGui.TableSetColumnIndex(2);
             DrawHeaderLabel("Stack size", center: true);
 
-            for (var i = 0; i < retainerNames.Count; i++)
+            DrawRetainerCapBulkRow(entry, retainerNames, stackCap);
+
+            foreach (var group in GroupRetainersByCharacter(retainerNames))
             {
-                var name = retainerNames[i];
-                var label = string.IsNullOrWhiteSpace(name) ? "(Unknown retainer)" : name;
-                ImGui.TableNextRow();
-                ImGui.TableSetColumnIndex(0);
-                ImGui.TextUnformatted(label);
-
-                ImGui.TableSetColumnIndex(1);
-                var capValue = entry.GetRetainerCapOrDefault(name);
-                var editorValue = capValue;
-                ImGui.PushID(i);
-                BeginCenteredElement(60f);
-                ImGui.SetNextItemWidth(60f);
-                if (ImGui.InputInt("##cap", ref editorValue))
-                {
-                    if (ImGui.IsItemDeactivatedAfterEdit())
-                    {
-                        var clamped = Math.Clamp(editorValue, 0, Configuration.RetainerCapMax);
-                        if (clamped != capValue)
-                        {
-                            entry.SetRetainerCap(name, clamped);
-                            Plugin.Log.Information("[RR][Config] Retainer cap updated itemId={ItemId} HQ={IsHq} retainer={Retainer} cap={Cap}",
-                                entry.ItemId, entry.IsHq, GetRetainerLabelForLog(i), clamped);
-                            SaveConfig();
-                        }
-                    }
-                }
-                if (ImGui.IsItemHovered())
-                    TooltipHelper.Show(_config, "0 - don't list\n1 - default listing\nN - post N listings");
-
-                ImGui.TableSetColumnIndex(2);
-                var stackValue = entry.GetRetainerStackSize(name);
-                var stackEditorValue = stackValue;
-                var stackDisabled = capValue <= 0;
-                if (stackDisabled)
-                    ImGui.BeginDisabled();
-
-                BeginCenteredElement(60f);
-                ImGui.SetNextItemWidth(60f);
-                if (ImGui.InputInt("##stack", ref stackEditorValue))
-                {
-                    if (ImGui.IsItemDeactivatedAfterEdit())
-                    {
-                        var clampedStack = Math.Clamp(stackEditorValue, 0, stackCap);
-                        if (clampedStack != stackValue)
-                        {
-                            entry.SetRetainerStackSize(name, clampedStack, stackCap);
-                            Plugin.Log.Information("[RR][Config] Retainer stack size updated itemId={ItemId} HQ={IsHq} retainer={Retainer} stack={Stack}",
-                                entry.ItemId, entry.IsHq, GetRetainerLabelForLog(i), clampedStack);
-                            SaveConfig();
-                        }
-                    }
-                }
-
-                if (stackDisabled)
-                {
-                    if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
-                        TooltipHelper.Show(_config, "Set the sell limit above 0 to edit stack sizes.");
-                    ImGui.EndDisabled();
-                }
-                else if (ImGui.IsItemHovered())
-                {
-                    TooltipHelper.Show(_config, stackCap >= 1000
-                        ? "0 = any amount; max = 9999."
-                        : "0 = any amount; max = 99.");
-                }
-
-                ImGui.PopID();
+                DrawCharacterRow(group.Key, 0);
+                DrawRetainerCapRows(entry, group.ToList(), stackCap);
             }
 
             ImGui.EndTable();
         }
+    }
 
-        ImGui.Unindent();
-        ImGui.PopID();
+    private void DrawRetainerCapBulkRow(Configuration.SellListEntry entry,
+        System.Collections.Generic.IReadOnlyList<string> retainerNames, int stackCap)
+    {
+        var key = Configuration.MakeSellKey(entry.ItemId, entry.IsHq);
+        if (!_bulkRetainerEdits.TryGetValue(key, out var values))
+            values = (Configuration.RetainerCapDefault, 0);
+
+        ImGui.TableNextRow();
+        ImGui.TableSetColumnIndex(0);
+        ImGui.TextWrapped("All selling retainers");
+
+        ImGui.TableSetColumnIndex(1);
+        BeginCenteredElement(60f);
+        ImGui.SetNextItemWidth(60f);
+        ImGui.InputInt("##bulk_sell_limit", ref values.SellLimit, 0, 0);
+        BeginCenteredElement(60f);
+        if (ImGui.Button("Set all##sell_limit", new Vector2(60f, 0f)))
+        {
+            values.SellLimit = Math.Clamp(values.SellLimit, 0, Configuration.RetainerCapMax);
+            var changed = false;
+            foreach (var name in retainerNames)
+            {
+                if (entry.GetRetainerCapOrDefault(name) == values.SellLimit)
+                    continue;
+
+                entry.SetRetainerCap(name, values.SellLimit);
+                changed = true;
+            }
+
+            if (changed)
+                SaveConfig();
+        }
+        if (ImGui.IsItemHovered())
+            TooltipHelper.Show(_config, $"Set the sell limit for all selling-enabled retainers for this item (0–{Configuration.RetainerCapMax}).");
+
+        ImGui.TableSetColumnIndex(2);
+        BeginCenteredElement(60f);
+        ImGui.SetNextItemWidth(60f);
+        ImGui.InputInt("##bulk_stack_size", ref values.StackSize, 0, 0);
+        BeginCenteredElement(60f);
+        if (ImGui.Button("Set all##stack_size", new Vector2(60f, 0f)))
+        {
+            values.StackSize = Math.Clamp(values.StackSize, 0, stackCap);
+            var changed = false;
+            foreach (var name in retainerNames)
+            {
+                if (entry.GetRetainerStackSize(name) == values.StackSize)
+                    continue;
+
+                entry.SetRetainerStackSize(name, values.StackSize, stackCap);
+                changed = true;
+            }
+
+            if (changed)
+                SaveConfig();
+        }
+        if (ImGui.IsItemHovered())
+            TooltipHelper.Show(_config, $"Set the stack size for all selling-enabled retainers for this item (0–{stackCap}). 0 = any amount.");
+
+        _bulkRetainerEdits[key] = values;
+    }
+
+    private void DrawRetainerCapRows(Configuration.SellListEntry entry,
+        System.Collections.Generic.IReadOnlyList<string> retainerNames, int stackCap)
+    {
+        for (var i = 0; i < retainerNames.Count; i++)
+        {
+            var name = retainerNames[i];
+            var label = string.IsNullOrWhiteSpace(name) ? "(Unknown retainer)" : name;
+            ImGui.TableNextRow();
+            ImGui.TableSetColumnIndex(0);
+            ImGui.TextUnformatted(label);
+
+            ImGui.TableSetColumnIndex(1);
+            var capValue = entry.GetRetainerCapOrDefault(name);
+            var editorValue = capValue;
+            ImGui.PushID(name);
+            BeginCenteredElement(60f);
+            ImGui.SetNextItemWidth(60f);
+            if (ImGui.InputInt("##cap", ref editorValue))
+            {
+                if (ImGui.IsItemDeactivatedAfterEdit())
+                {
+                    var clamped = Math.Clamp(editorValue, 0, Configuration.RetainerCapMax);
+                    if (clamped != capValue)
+                    {
+                        entry.SetRetainerCap(name, clamped);
+                        Plugin.Log.Information("[RR][Config] Retainer cap updated itemId={ItemId} HQ={IsHq} retainer={Retainer} cap={Cap}",
+                            entry.ItemId, entry.IsHq, GetRetainerLabelForLog(i), clamped);
+                        SaveConfig();
+                    }
+                }
+            }
+            if (ImGui.IsItemHovered())
+                TooltipHelper.Show(_config, "0 - don't list\n1 - default listing\nN - post N listings");
+
+            ImGui.TableSetColumnIndex(2);
+            var stackValue = entry.GetRetainerStackSize(name);
+            var stackEditorValue = stackValue;
+            var stackDisabled = capValue <= 0;
+            if (stackDisabled)
+                ImGui.BeginDisabled();
+
+            BeginCenteredElement(60f);
+            ImGui.SetNextItemWidth(60f);
+            if (ImGui.InputInt("##stack", ref stackEditorValue))
+            {
+                if (ImGui.IsItemDeactivatedAfterEdit())
+                {
+                    var clampedStack = Math.Clamp(stackEditorValue, 0, stackCap);
+                    if (clampedStack != stackValue)
+                    {
+                        entry.SetRetainerStackSize(name, clampedStack, stackCap);
+                        Plugin.Log.Information("[RR][Config] Retainer stack size updated itemId={ItemId} HQ={IsHq} retainer={Retainer} stack={Stack}",
+                            entry.ItemId, entry.IsHq, GetRetainerLabelForLog(i), clampedStack);
+                        SaveConfig();
+                    }
+                }
+            }
+
+            if (stackDisabled)
+            {
+                if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
+                    TooltipHelper.Show(_config, "Set the sell limit above 0 to edit stack sizes.");
+                ImGui.EndDisabled();
+            }
+            else if (ImGui.IsItemHovered())
+            {
+                TooltipHelper.Show(_config, stackCap >= 1000
+                    ? "0 = any amount; max = 9999."
+                    : "0 = any amount; max = 99.");
+            }
+
+            ImGui.PopID();
+        }
     }
 
     private static bool AnyRetainerUsesCustomStack(Configuration.SellListEntry entry, System.Collections.Generic.IReadOnlyList<string> retainerNames)
@@ -698,6 +784,21 @@ public sealed class ConfigWindow : Window, IDisposable
         ImGui.Spacing();
 
         DrawRetainerTable(names);
+    }
+
+    private System.Collections.Generic.IEnumerable<IGrouping<string, string>> GroupRetainersByCharacter(
+        System.Collections.Generic.IEnumerable<string> names)
+        => names.GroupBy(x => _config.GetRetainerBehavior(x).Character?.Trim() ?? string.Empty,
+                StringComparer.OrdinalIgnoreCase)
+            .OrderBy(x => x.Key.Length == 0)
+            .ThenBy(x => x.Key, StringComparer.OrdinalIgnoreCase);
+
+    private static void DrawCharacterRow(string character, int columnIndex)
+    {
+        var label = string.IsNullOrWhiteSpace(character) ? "Unknown character" : character;
+        ImGui.TableNextRow(ImGuiTableRowFlags.Headers);
+        ImGui.TableSetColumnIndex(columnIndex);
+        ImGui.TextUnformatted(label);
     }
 
     private void DrawRetainerBulkButtons(System.Collections.Generic.IReadOnlyList<string> names)
@@ -755,20 +856,29 @@ public sealed class ConfigWindow : Window, IDisposable
             return;
 
         ImGui.TableSetupColumn("Enable", ImGuiTableColumnFlags.WidthFixed, 45f);
-        ImGui.TableSetupColumn("Retainer", ImGuiTableColumnFlags.WidthStretch);
+        ImGui.TableSetupColumn("##retainer", ImGuiTableColumnFlags.WidthStretch);
         ImGui.TableSetupColumn("Reprice", ImGuiTableColumnFlags.WidthFixed, 45f);
         ImGui.TableSetupColumn("Sell", ImGuiTableColumnFlags.WidthFixed, 45f);
 
         ImGui.TableNextRow(ImGuiTableRowFlags.Headers);
         ImGui.TableSetColumnIndex(0);
         DrawHeaderLabel("Enable", center: true);
-        ImGui.TableSetColumnIndex(1);
-        DrawHeaderLabel("Retainer", center: false);
         ImGui.TableSetColumnIndex(2);
         DrawHeaderLabel("Reprice", center: true);
         ImGui.TableSetColumnIndex(3);
         DrawHeaderLabel("Sell", center: true);
 
+        foreach (var group in GroupRetainersByCharacter(names))
+        {
+            DrawCharacterRow(group.Key, 1);
+            DrawRetainerRows(group.ToList());
+        }
+
+        ImGui.EndTable();
+    }
+
+    private void DrawRetainerRows(System.Collections.Generic.IReadOnlyList<string> names)
+    {
         for (var row = 0; row < names.Count; row++)
         {
             var name = names[row];
@@ -827,8 +937,6 @@ public sealed class ConfigWindow : Window, IDisposable
 
             ImGui.PopID();
         }
-
-        ImGui.EndTable();
     }
 
     private static bool DrawCenteredCheckbox(string id, ref bool value)

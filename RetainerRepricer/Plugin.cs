@@ -221,6 +221,7 @@ public unsafe sealed partial class Plugin : IDalamudPlugin
     internal void SyncRetainersIntoConfig(IEnumerable<string> names)
     {
         var changed = false;
+        var character = Player.Available && Player.CID != 0 ? Player.NameWithWorld : string.Empty;
         var addedRetainerLabels = new List<string>();
         var rowIndex = -1;
 
@@ -228,6 +229,7 @@ public unsafe sealed partial class Plugin : IDalamudPlugin
         {
             rowIndex++;
             var behavior = Configuration.GetRetainerBehavior(n);
+            changed |= Configuration.SetRetainerCharacter(n, character);
 
             if (!Configuration.RetainersEnabled.ContainsKey(n))
             {
@@ -246,10 +248,17 @@ public unsafe sealed partial class Plugin : IDalamudPlugin
         if (changed) Configuration.Save();
     }
 
+    internal void SyncRetainerCharacters()
+    {
+        if (_autoRetainerIntegration.SyncRetainerCharacters())
+            Configuration.Save();
+
+        TrySyncRetainersThrottled();
+    }
+
     internal unsafe void TrySyncRetainersThrottled()
     {
-        var rl = GameGui.GetAddonByName("RetainerList", 1);
-        if (rl.IsNull) return;
+        if (!IsAddonVisible("RetainerList")) return;
 
         var now = DateTime.UtcNow;
         if ((now - _lastRetainerSyncUtc).TotalSeconds < RetainerSyncIntervalSeconds)

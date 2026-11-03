@@ -158,6 +158,20 @@ public sealed class Configuration : IPluginConfiguration
     public RetainerBehavior GetRetainerBehavior(string name)
         => EnsureRetainerBehavior(name);
 
+    public bool SetRetainerCharacter(string name, string character)
+    {
+        if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(character))
+            return false;
+
+        var behavior = EnsureRetainerBehavior(name);
+        var characterName = character.Trim();
+        if (string.Equals(behavior.Character, characterName, StringComparison.Ordinal))
+            return false;
+
+        behavior.Character = characterName;
+        return true;
+    }
+
     private RetainerBehavior EnsureRetainerBehavior(string name)
     {
         EnsureRetainerDictionaries();
@@ -682,6 +696,7 @@ public sealed class Configuration : IPluginConfiguration
     [Serializable]
     public sealed class RetainerBehavior
     {
+        public string Character { get; set; } = string.Empty;
         public bool Enabled { get; set; } = true;
         public bool AllowSell { get; set; } = true;
         public bool AllowReprice { get; set; } = true;

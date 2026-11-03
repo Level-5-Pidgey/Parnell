@@ -1,5 +1,7 @@
 using AutoRetainerAPI;
 using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace RetainerRepricer.Services;
 
@@ -21,6 +23,49 @@ internal sealed class AutoRetainerIntegration : IDisposable
     }
 
     internal bool IsAvailable => !_disposed && _api.Ready;
+
+    internal bool SyncRetainerCharacters()
+    {
+        if (!IsAvailable)
+            return false;
+
+        var changed = false;
+        try
+        {
+            var knownNames = _plugin.Configuration.GetAllRetainerNames()
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var owners = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+            foreach (var characterId in _api.GetRegisteredCharacters())
+            {
+                var character = _api.GetOfflineCharacterData(characterId);
+                if (string.IsNullOrWhiteSpace(character.Name) || string.IsNullOrWhiteSpace(character.World))
+                    continue;
+
+                foreach (var retainer in character.RetainerData)
+                {
+                    if (!knownNames.Contains(retainer.Name))
+                        continue;
+
+                    if (!owners.TryGetValue(retainer.Name, out var characters))
+                        owners[retainer.Name] = characters = new(StringComparer.OrdinalIgnoreCase);
+
+                    characters.Add($"{character.Name}@{character.World}");
+                }
+            }
+
+            foreach (var owner in owners)
+            {
+                if (owner.Value.Count == 1)
+                    changed |= _plugin.Configuration.SetRetainerCharacter(owner.Key, owner.Value.Single());
+            }
+        }
+        catch (Exception ex)
+        {
+            Plugin.Log.Debug("[RR][AutoRetainer] Could not read retainer character groups: {Error}", ex.Message);
+        }
+
+        return changed;
+    }
 
     private void OnRetainerPostprocessStep(string retainerName)
     {
