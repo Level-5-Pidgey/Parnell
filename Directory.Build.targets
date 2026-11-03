@@ -7,6 +7,8 @@
 
   <ItemGroup Condition="'$(MSBuildProjectName)' == 'ECommons'">
     <PackageReference Update="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="5.6.0" />
+    <!-- ECommons sheet rows require Lumina's ExcelPage rather than the client struct. -->
+    <Using Include="Lumina.Excel.ExcelPage" Alias="ExcelPage" />
   </ItemGroup>
 
   <!-- Both the plugin and AutoRetainerAPI must use the same ECommons assembly. -->
