@@ -158,6 +158,7 @@ public sealed class ConfigWindow : Window, IDisposable
 
         var rows = BuildFilteredSellListRows();
         var retainerNames = _config.GetAllRetainerNames()
+            .Where(_config.RetainerAllowsSell)
             .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
             .ToList();
         ImGui.TextDisabled($"{rows.Count} item(s)");
@@ -562,7 +563,9 @@ public sealed class ConfigWindow : Window, IDisposable
 
         if (retainerNames.Count == 0)
         {
-            ImGui.TextDisabled("Open the Retainer List to capture names.");
+            ImGui.TextDisabled(_config.GetAllRetainerNames().Any()
+                ? "No retainers enabled for selling."
+                : "Open the Retainer List to capture names.");
             ImGui.Unindent();
             ImGui.PopID();
             return;

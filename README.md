@@ -57,7 +57,7 @@ The items you want the plugin to list or reprice live here.
 - Each row shows priority, item name, how many you need in inventory before listing, and a remove button.
 - When Smart Sort is active, priority numbers are just for reference—the plugin reorders them automatically.
 - The Smart Sort button reorder your list based on how fast items sell and their average price. If it's disabled, check that Universalis is enabled in Settings.
-- With per-retainer caps enabled in Settings, each Sell List item can have different listing limits per retainer, and you can set how many of an item to list in a single transaction.
+- With per-retainer caps enabled in Settings, each Sell List item can have different listing limits per retainer, and you can set how many of an item to list in a single transaction. Only retainers with both Enable and Sell checked in the Retainers tab appear in these settings.
 
 ---
 
